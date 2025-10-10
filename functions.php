@@ -361,3 +361,157 @@ function somity_save_registration_fields($user_id) {
     }
 }
 add_action('user_register', 'somity_save_registration_fields');
+
+
+/**
+ * Custom registration handler
+ */
+function somity_custom_registration_handler() {
+    if (isset($_POST['wp-submit']) && $_POST['wp-submit'] == __('Register', 'somity-manager')) {
+        $errors = new WP_Error();
+        
+        // Validate username
+        $username = sanitize_user($_POST['user_login']);
+        if (empty($username)) {
+            $errors->add('empty_username', __('<strong>Error</strong>: Please enter a username.', 'somity-manager'));
+        } elseif (!validate_username($username)) {
+            $errors->add('invalid_username', __('<strong>Error</strong>: This username is invalid because it uses illegal characters. Please enter a valid username.', 'somity-manager'));
+        } elseif (username_exists($username)) {
+            $errors->add('username_exists', __('<strong>Error</strong>: This username is already registered. Please choose another one.', 'somity-manager'));
+        }
+        
+        // Validate email
+        $email = sanitize_email($_POST['user_email']);
+        if (empty($email)) {
+            $errors->add('empty_email', __('<strong>Error</strong>: Please type your email address.', 'somity-manager'));
+        } elseif (!is_email($email)) {
+            $errors->add('invalid_email', __('<strong>Error</strong>: The email address isn&#8217;t correct.', 'somity-manager'));
+        } elseif (email_exists($email)) {
+            $errors->add('email_exists', __('<strong>Error</strong>: This email is already registered. Please choose another one.', 'somity-manager'));
+        }
+        
+        // Validate password
+        $password = $_POST['user_pass'];
+        $confirm_password = $_POST['confirm_password'];
+        
+        if (empty($password)) {
+            $errors->add('empty_password', __('<strong>Error</strong>: Please enter a password.', 'somity-manager'));
+        } elseif (strlen($password) < 8) {
+            $errors->add('password_length', __('<strong>Error</strong>: Password must be at least 8 characters long.', 'somity-manager'));
+        } elseif ($password !== $confirm_password) {
+            $errors->add('password_mismatch', __('<strong>Error</strong>: Passwords do not match.', 'somity-manager'));
+        }
+        
+        // Validate custom fields
+        if (empty($_POST['first_name'])) {
+            $errors->add('empty_first_name', __('<strong>Error</strong>: Please enter your first name.', 'somity-manager'));
+        }
+        
+        if (empty($_POST['last_name'])) {
+            $errors->add('empty_last_name', __('<strong>Error</strong>: Please enter your last name.', 'somity-manager'));
+        }
+        
+        if (empty($_POST['phone'])) {
+            $errors->add('empty_phone', __('<strong>Error</strong>: Please enter your phone number.', 'somity-manager'));
+        }
+        
+        if (empty($_POST['address'])) {
+            $errors->add('empty_address', __('<strong>Error</strong>: Please enter your address.', 'somity-manager'));
+        }
+        
+        // If there are errors, redirect back with error messages
+        if (count($errors->get_error_messages()) > 0) {
+            // Use WordPress transients to store error data temporarily
+            $error_key = 'registration_errors_' . md5(time());
+            set_transient($error_key, $errors, 300); // Store for 5 minutes
+            
+            $redirect_url = add_query_arg(array(
+                'registration_errors' => $error_key
+            ), home_url('/signup/'));
+            
+            wp_redirect($redirect_url);
+            exit;
+        }
+        
+        // If no errors, create the user
+        $user_id = wp_create_user($username, $password, $email);
+        
+        if (is_wp_error($user_id)) {
+            $errors->add('registerfail', sprintf(__('<strong>Error</strong>: Couldn&#8217;t register you&hellip; please contact the <a href="mailto:%s">site admin</a>!', 'somity-manager'), get_option('admin_email')));
+            
+            // Use WordPress transients to store error data temporarily
+            $error_key = 'registration_errors_' . md5(time());
+            set_transient($error_key, $errors, 300); // Store for 5 minutes
+            
+            $redirect_url = add_query_arg(array(
+                'registration_errors' => $error_key
+            ), home_url('/signup/'));
+            
+            wp_redirect($redirect_url);
+            exit;
+        }
+        
+        // Update user meta
+        update_user_meta($user_id, 'first_name', sanitize_text_field($_POST['first_name']));
+        update_user_meta($user_id, 'last_name', sanitize_text_field($_POST['last_name']));
+        update_user_meta($user_id, '_phone', sanitize_text_field($_POST['phone']));
+        update_user_meta($user_id, '_address', sanitize_textarea_field($_POST['address']));
+        update_user_meta($user_id, '_member_status', 'pending');
+        
+        // Set user role to member
+        $user = new WP_User($user_id);
+        $user->set_role('member');
+        
+        // Create activity record
+        $activity_data = array(
+            'post_title' => 'New Member Registration',
+            'post_content' => 'New member ' . sanitize_text_field($_POST['first_name']) . ' ' . sanitize_text_field($_POST['last_name']) . ' registered and is pending approval',
+            'post_status' => 'publish',
+            'post_author' => 1, // Admin user
+            'post_type' => 'activity',
+        );
+        
+        $activity_id = wp_insert_post($activity_data);
+        
+        if (!is_wp_error($activity_id)) {
+            wp_set_post_terms($activity_id, 'member', 'activity_type');
+        }
+        
+        // Send notification email to admin
+        $admin_email = get_option('admin_email');
+        $subject = __('New Member Registration', 'somity-manager');
+        
+        // Build the email message
+        $message = __('A new member has registered on', 'somity-manager') . ' ' . get_bloginfo('name') . " " . __('and is pending approval.', 'somity-manager') . "\n\n";
+        $message .= "----------------------\n";
+        $message .= __('Name:', 'somity-manager') . ' ' . sanitize_text_field($_POST['first_name']) . ' ' . sanitize_text_field($_POST['last_name']) . "\n";
+        $message .= __('Email:', 'somity-manager') . ' ' . $email . "\n";
+        $message .= __('Phone:', 'somity-manager') . ' ' . sanitize_text_field($_POST['phone']) . "\n";
+        $message .= __('Address:', 'somity-manager') . ' ' . sanitize_textarea_field($_POST['address']) . "\n";
+        $message .= "----------------------\n";
+        $message .= __('You can approve or reject this member here:', 'somity-manager') . ' ' . admin_url('admin.php?page=manage-members');
+        
+        wp_mail($admin_email, $subject, $message);
+        
+        // Redirect to success page
+        $redirect_to = $_POST['redirect_to'];
+        wp_redirect($redirect_to);
+        exit;
+    }
+    
+    // Check for error key in URL and display errors
+    if (isset($_GET['registration_errors'])) {
+        $error_key = sanitize_text_field($_GET['registration_errors']);
+        if (strpos($error_key, 'registration_errors_') === 0) {
+            $errors = get_transient($error_key);
+            if ($errors && is_wp_error($errors)) {
+                // Store errors in a global variable for display in the template
+                global $registration_errors;
+                $registration_errors = $errors;
+                // Delete the transient after retrieving it
+                delete_transient($error_key);
+            }
+        }
+    }
+}
+add_action('init', 'somity_custom_registration_handler');
