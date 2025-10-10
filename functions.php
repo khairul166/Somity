@@ -269,3 +269,95 @@ class Bootstrap_Nav_Walker extends Walker_Nav_Menu {
 
 
 
+/**
+ * Add custom fields to registration form
+ */
+function somity_add_registration_fields() {
+    ?>
+    <p>
+        <label for="first_name"><?php _e('First Name', 'somity-manager'); ?><br />
+        <input type="text" name="first_name" id="first_name" class="input" value="<?php echo (isset($_POST['first_name'])) ? esc_attr($_POST['first_name']) : ''; ?>" size="25" /></label>
+    </p>
+    <p>
+        <label for="last_name"><?php _e('Last Name', 'somity-manager'); ?><br />
+        <input type="text" name="last_name" id="last_name" class="input" value="<?php echo (isset($_POST['last_name'])) ? esc_attr($_POST['last_name']) : ''; ?>" size="25" /></label>
+    </p>
+    <p>
+        <label for="phone"><?php _e('Phone', 'somity-manager'); ?><br />
+        <input type="text" name="phone" id="phone" class="input" value="<?php echo (isset($_POST['phone'])) ? esc_attr($_POST['phone']) : ''; ?>" size="25" /></label>
+    </p>
+    <p>
+        <label for="address"><?php _e('Address', 'somity-manager'); ?><br />
+        <textarea name="address" id="address" class="input" rows="3"><?php echo (isset($_POST['address'])) ? esc_textarea($_POST['address']) : ''; ?></textarea></label>
+    </p>
+    <?php
+}
+add_action('register_form', 'somity_add_registration_fields');
+
+/**
+ * Validate registration fields
+ */
+function somity_validate_registration_fields($errors, $sanitized_user_login, $user_email) {
+    if (empty($_POST['first_name'])) {
+        $errors->add('first_name_error', __('<strong>Error</strong>: Please enter your first name.', 'somity-manager'));
+    }
+    
+    if (empty($_POST['last_name'])) {
+        $errors->add('last_name_error', __('<strong>Error</strong>: Please enter your last name.', 'somity-manager'));
+    }
+    
+    if (empty($_POST['phone'])) {
+        $errors->add('phone_error', __('<strong>Error</strong>: Please enter your phone number.', 'somity-manager'));
+    }
+    
+    if (empty($_POST['address'])) {
+        $errors->add('address_error', __('<strong>Error</strong>: Please enter your address.', 'somity-manager'));
+    }
+    
+    return $errors;
+}
+add_filter('registration_errors', 'somity_validate_registration_fields', 10, 3);
+
+/**
+ * Save registration fields
+ */
+function somity_save_registration_fields($user_id) {
+    if (isset($_POST['first_name'])) {
+        update_user_meta($user_id, 'first_name', sanitize_text_field($_POST['first_name']));
+    }
+    
+    if (isset($_POST['last_name'])) {
+        update_user_meta($user_id, 'last_name', sanitize_text_field($_POST['last_name']));
+    }
+    
+    if (isset($_POST['phone'])) {
+        update_user_meta($user_id, '_phone', sanitize_text_field($_POST['phone']));
+    }
+    
+    if (isset($_POST['address'])) {
+        update_user_meta($user_id, '_address', sanitize_textarea_field($_POST['address']));
+    }
+    
+    // Set default member status to pending
+    update_user_meta($user_id, '_member_status', 'pending');
+    
+    // Set user role to member
+    $user = new WP_User($user_id);
+    $user->set_role('member');
+    
+    // Create activity record
+    $activity_data = array(
+        'post_title' => 'New Member Registration',
+        'post_content' => 'New member ' . $_POST['first_name'] . ' ' . $_POST['last_name'] . ' registered and is pending approval',
+        'post_status' => 'publish',
+        'post_author' => 1, // Admin user
+        'post_type' => 'activity',
+    );
+    
+    $activity_id = wp_insert_post($activity_data);
+    
+    if (!is_wp_error($activity_id)) {
+        wp_set_post_terms($activity_id, 'member', 'activity_type');
+    }
+}
+add_action('user_register', 'somity_save_registration_fields');

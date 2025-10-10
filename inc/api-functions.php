@@ -893,3 +893,192 @@ function somity_get_total_payments_count() {
     
     return $payments_query->found_posts;
 }
+
+
+
+/**
+ * Get all members with pagination
+ */
+function somity_get_members_paginated($per_page = 10, $page = 1, $status = 'all', $search = '') {
+    $offset = ($page - 1) * $per_page;
+    
+    $args = array(
+        'role' => 'member',
+        'number' => $per_page,
+        'offset' => $offset,
+        'orderby' => 'registered',
+        'order' => 'DESC',
+    );
+    
+    // Handle search filter
+    if (!empty($search)) {
+        $args['search'] = '*' . $search . '*';
+    }
+    
+    // Handle status filter
+    if ($status !== 'all') {
+        $args['meta_key'] = '_member_status';
+        $args['meta_value'] = $status;
+    }
+    
+    $members_query = new WP_User_Query($args);
+    
+    $members = array();
+    
+    if (!empty($members_query->get_results())) {
+        foreach ($members_query->get_results() as $member) {
+            $member_status = get_user_meta($member->ID, '_member_status', true);
+            if (empty($member_status)) {
+                $member_status = 'pending';
+            }
+            
+            $members[] = (object) array(
+                'id' => $member->ID,
+                'name' => $member->display_name,
+                'email' => $member->user_email,
+                'phone' => get_user_meta($member->ID, '_phone', true),
+                'address' => get_user_meta($member->ID, '_address', true),
+                'join_date' => $member->user_registered,
+                'status' => $member_status,
+            );
+        }
+    }
+    
+    return array(
+        'items' => $members,
+        'total' => $members_query->get_total(),
+        'pages' => ceil($members_query->get_total() / $per_page),
+        'current_page' => $page
+    );
+}
+
+/**
+ * Get member details by ID
+ */
+function somity_get_member_details($member_id) {
+    $member = get_user_by('id', $member_id);
+    
+    if (!$member || !in_array('member', $member->roles)) {
+        return false;
+    }
+    
+    $member_status = get_user_meta($member->ID, '_member_status', true);
+    if (empty($member_status)) {
+        $member_status = 'pending';
+    }
+    
+    return (object) array(
+        'id' => $member->ID,
+        'first_name' => $member->first_name,
+        'last_name' => $member->last_name,
+        'display_name' => $member->display_name,
+        'email' => $member->user_email,
+        'phone' => get_user_meta($member->ID, '_phone', true),
+        'address' => get_user_meta($member->ID, '_address', true),
+        'join_date' => $member->user_registered,
+        'status' => $member_status,
+        'balance' => somity_get_member_balance($member->ID),
+        'monthly_installment' => somity_get_member_monthly_installment($member->ID),
+        'outstanding_balance' => somity_get_member_outstanding_balance($member->ID),
+        'total_paid' => somity_get_member_total_paid($member->ID),
+    );
+}
+
+/**
+ * Approve member
+ */
+function somity_approve_member($member_id) {
+    $member = get_user_by('id', $member_id);
+    
+    if (!$member || !in_array('member', $member->roles)) {
+        return false;
+    }
+    
+    // Update member status
+    update_user_meta($member_id, '_member_status', 'approved');
+    
+    // Create activity record
+    $activity_data = array(
+        'post_title' => 'Member Approved',
+        'post_content' => 'Member ' . $member->display_name . ' was approved',
+        'post_status' => 'publish',
+        'post_author' => get_current_user_id(),
+        'post_type' => 'activity',
+    );
+    
+    $activity_id = wp_insert_post($activity_data);
+    
+    if (!is_wp_error($activity_id)) {
+        wp_set_post_terms($activity_id, 'member', 'activity_type');
+    }
+    
+    return true;
+}
+
+/**
+ * Reject member
+ */
+function somity_reject_member($member_id, $reason = '') {
+    $member = get_user_by('id', $member_id);
+    
+    if (!$member || !in_array('member', $member->roles)) {
+        return false;
+    }
+    
+    // Update member status
+    update_user_meta($member_id, '_member_status', 'rejected');
+    update_user_meta($member_id, '_rejection_reason', $reason);
+    
+    // Create activity record
+    $activity_data = array(
+        'post_title' => 'Member Rejected',
+        'post_content' => 'Member ' . $member->display_name . ' was rejected. Reason: ' . $reason,
+        'post_status' => 'publish',
+        'post_author' => get_current_user_id(),
+        'post_type' => 'activity',
+    );
+    
+    $activity_id = wp_insert_post($activity_data);
+    
+    if (!is_wp_error($activity_id)) {
+        wp_set_post_terms($activity_id, 'member', 'activity_type');
+    }
+    
+    return true;
+}
+
+// AJAX handlers for member management
+add_action('wp_ajax_approve_member', 'somity_ajax_approve_member');
+function somity_ajax_approve_member() {
+    check_ajax_referer('somity-nonce', 'nonce');
+    
+    if (!current_user_can('administrator')) {
+        wp_send_json_error(array('message' => __('You do not have permission to approve members.', 'somity-manager')));
+    }
+    
+    $member_id = intval($_POST['member_id']);
+    
+    if (somity_approve_member($member_id)) {
+        wp_send_json_success(array('message' => __('Member has been approved successfully.', 'somity-manager')));
+    } else {
+        wp_send_json_error(array('message' => __('Error approving member.', 'somity-manager')));
+    }
+}
+
+add_action('wp_ajax_reject_member', 'somity_ajax_reject_member');
+function somity_ajax_reject_member() {
+    check_ajax_referer('somity-nonce', 'nonce');
+    
+    if (!current_user_can('administrator')) {
+        wp_send_json_error(array('message' => __('You do not have permission to reject members.', 'somity-manager')));
+    }
+    
+    $member_id = intval($_POST['member_id']);
+    $reason = sanitize_textarea_field($_POST['reason']);
+    
+    if (somity_reject_member($member_id, $reason)) {
+        wp_send_json_success(array('message' => __('Member has been rejected successfully.', 'somity-manager')));
+    } else {
+        wp_send_json_error(array('message' => __('Error rejecting member.', 'somity-manager')));
+    }
+}
