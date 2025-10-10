@@ -156,7 +156,7 @@
                 },
                 error: function (xhr, status, error) {
                     var errorMessage = somityAjax.texts.errorMessage;
-                    
+
                     if (xhr.responseText) {
                         try {
                             var response = JSON.parse(xhr.responseText);
@@ -167,7 +167,7 @@
                             console.error('Error parsing response: ' + e.message);
                         }
                     }
-                    
+
                     alert(errorMessage);
 
                     // Re-enable button after error
@@ -203,7 +203,7 @@
             clearTimeout(searchTimer);
             searchTimer = setTimeout(function () {
                 var searchTerm = $('#payment-search').val().toLowerCase();
-                
+
                 if (searchTerm.length > 2 || searchTerm.length === 0) {
                     var currentUrl = new URL(window.location.href);
                     if (searchTerm.length > 0) {
@@ -221,7 +221,7 @@
         $('#payment-filter').on('change', function () {
             var filterValue = $(this).val();
             var currentUrl = new URL(window.location.href);
-            
+
             if (filterValue === 'all') {
                 currentUrl.searchParams.delete('status');
             } else {
@@ -235,7 +235,7 @@
         $('#month-filter').on('change', function () {
             var filterValue = $(this).val();
             var currentUrl = new URL(window.location.href);
-            
+
             if (filterValue === 'all') {
                 currentUrl.searchParams.delete('month');
             } else {
@@ -258,7 +258,7 @@
             var filterValue = $('#payment-filter').val();
             var searchTerm = $('#payment-search').val();
             var monthFilter = $('#month-filter').val();
-            
+
             window.location.href = somityAjax.ajaxurl + '?action=export_payments&filter=' + filterValue + '&search=' + searchTerm + '&month=' + monthFilter + '&nonce=' + somityAjax.nonce;
         });
 
@@ -266,7 +266,7 @@
         $('.approve-payment').on('click', function () {
             var paymentId = $(this).data('id');
             var $btn = $(this);
-            
+
             if (confirm(somityAjax.texts.approveConfirm)) {
                 $.ajax({
                     type: 'POST',
@@ -300,7 +300,7 @@
             var paymentId = $(this).data('id');
             var $btn = $(this);
             var reason = prompt(somityAjax.texts.rejectReason);
-            
+
             if (reason !== null) {
                 $.ajax({
                     type: 'POST',

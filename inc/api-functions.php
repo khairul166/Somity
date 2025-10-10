@@ -801,7 +801,7 @@ function somity_get_member_total_paid($member_id) {
 /**
  * Get recent payments with pagination and filters
  */
-function somity_get_recent_payments_paginated($per_page = 10, $page = 1) {
+function somity_get_recent_payments_paginated($per_page = 10, $page = 1, $status = 'all', $search = '', $month = 'all') {
     $offset = ($page - 1) * $per_page;
     
     $args = array(
@@ -814,24 +814,24 @@ function somity_get_recent_payments_paginated($per_page = 10, $page = 1) {
     );
     
     // Handle search filter
-    if (isset($_GET['search']) && !empty($_GET['search'])) {
-        $args['s'] = sanitize_text_field($_GET['search']);
+    if (!empty($search)) {
+        $args['s'] = $search;
     }
     
     // Handle status filter
-    if (isset($_GET['status']) && !empty($_GET['status']) && $_GET['status'] !== 'all') {
+    if ($status !== 'all') {
         $args['tax_query'] = array(
             array(
                 'taxonomy' => 'payment_status',
                 'field' => 'slug',
-                'terms' => sanitize_text_field($_GET['status']),
+                'terms' => $status,
             ),
         );
     }
     
     // Handle month filter
-    if (isset($_GET['month']) && !empty($_GET['month']) && $_GET['month'] !== 'all') {
-        $month = intval($_GET['month']);
+    if ($month !== 'all') {
+        $month = intval($month);
         $year = date('Y');
         
         $args['meta_query'] = array(
