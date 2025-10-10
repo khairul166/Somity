@@ -148,7 +148,8 @@ get_header();
                                 <tbody>
                                     <?php
                                     // Get current page number
-                                    $paged = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
+                                    $paged = max(1, get_query_var('paged') ? get_query_var('paged') : (isset($_GET['paged']) ? intval($_GET['paged']) : 1));
+
                                     
                                     // Get filter values
                                     $status = isset($_GET['status']) ? sanitize_text_field($_GET['status']) : 'all';
@@ -243,6 +244,13 @@ get_header();
                                     'month' => $month
                                 );
                                 
+                                // Remove empty parameters
+                                foreach ($query_params as $key => $value) {
+                                    if ($value === 'all' || $value === '') {
+                                        unset($query_params[$key]);
+                                    }
+                                }
+                                
                                 // Previous page
                                 if ($payments_data['current_page'] > 1) {
                                     $prev_page = $payments_data['current_page'] - 1;
@@ -252,20 +260,49 @@ get_header();
                                     echo '<li class="page-item disabled"><a class="page-link" href="#" tabindex="-1">' . __('Previous', 'somity-manager') . '</a></li>';
                                 }
                                 
+                                // Page numbers - only show a limited range
+                                $start_page = max(1, $payments_data['current_page'] - 2);
+                                $end_page = min($payments_data['pages'], $payments_data['current_page'] + 2);
+                                
+                                // First page
+                                if ($start_page > 1) {
+                                    $first_link = add_query_arg(array_merge($query_params, array('paged' => 1)));
+                                    echo '<li class="page-item"><a class="page-link" href="' . esc_url($first_link) . '">1</a></li>';
+                                    if ($start_page > 2) {
+                                        echo '<li class="page-item disabled"><a class="page-link" href="#">...</a></li>';
+                                    }
+                                }
+                                
                                 // Page numbers
-                                for ($i = 1; $i <= $payments_data['pages']; $i++) {
+                                for ($i = $start_page; $i <= $end_page; $i++) {
                                     if ($i == $payments_data['current_page']) {
                                         echo '<li class="page-item active"><a class="page-link" href="#">' . $i . '</a></li>';
                                     } else {
-                                        $page_link = add_query_arg(array_merge($query_params, array('paged' => $i)));
+                                        $page_link = add_query_arg(
+    array_merge($query_params, array('paged' => $i)),
+    get_permalink() // ensures correct base page
+);
+
                                         echo '<li class="page-item"><a class="page-link" href="' . esc_url($page_link) . '">' . $i . '</a></li>';
                                     }
+                                }
+                                
+                                // Last page
+                                if ($end_page < $payments_data['pages']) {
+                                    if ($end_page < $payments_data['pages'] - 1) {
+                                        echo '<li class="page-item disabled"><a class="page-link" href="#">...</a></li>';
+                                    }
+                                    $last_link = add_query_arg(array_merge($query_params, array('paged' => $payments_data['pages'])));
+                                    echo '<li class="page-item"><a class="page-link" href="' . esc_url($last_link) . '">' . $payments_data['pages'] . '</a></li>';
                                 }
                                 
                                 // Next page
                                 if ($payments_data['current_page'] < $payments_data['pages']) {
                                     $next_page = $payments_data['current_page'] + 1;
-                                    $next_link = add_query_arg(array_merge($query_params, array('paged' => $next_page)));
+                                    $next_link = add_query_arg(
+    array_merge($query_params, array('paged' => $next_page)),
+    get_permalink()
+);
                                     echo '<li class="page-item"><a class="page-link" href="' . esc_url($next_link) . '">' . __('Next', 'somity-manager') . '</a></li>';
                                 } else {
                                     echo '<li class="page-item disabled"><a class="page-link" href="#" tabindex="-1">' . __('Next', 'somity-manager') . '</a></li>';

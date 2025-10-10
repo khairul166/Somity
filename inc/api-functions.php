@@ -799,10 +799,12 @@ function somity_get_member_total_paid($member_id) {
     return $total_paid;
 }
 
+
+
 /**
  * Get recent payments with pagination and filters
  */
-function somity_get_recent_payments_paginated($per_page = 10, $page = 1) {
+function somity_get_recent_payments_paginated($per_page = 10, $page = 1, $status = 'all', $search = '', $month = 'all') {
     $offset = ($page - 1) * $per_page;
     
     $args = array(
@@ -815,24 +817,24 @@ function somity_get_recent_payments_paginated($per_page = 10, $page = 1) {
     );
     
     // Handle search filter
-    if (isset($_GET['search']) && !empty($_GET['search'])) {
-        $args['s'] = sanitize_text_field($_GET['search']);
+    if (!empty($search)) {
+        $args['s'] = $search;
     }
     
     // Handle status filter
-    if (isset($_GET['status']) && !empty($_GET['status']) && $_GET['status'] !== 'all') {
+    if ($status !== 'all') {
         $args['tax_query'] = array(
             array(
                 'taxonomy' => 'payment_status',
                 'field' => 'slug',
-                'terms' => sanitize_text_field($_GET['status']),
+                'terms' => $status,
             ),
         );
     }
     
     // Handle month filter
-    if (isset($_GET['month']) && !empty($_GET['month']) && $_GET['month'] !== 'all') {
-        $month = intval($_GET['month']);
+    if ($month !== 'all') {
+        $month = intval($month);
         $year = date('Y');
         
         $args['meta_query'] = array(
@@ -853,7 +855,7 @@ function somity_get_recent_payments_paginated($per_page = 10, $page = 1) {
             $payments_query->the_post();
             $payment_id = get_the_ID();
             $status_terms = wp_get_post_terms($payment_id, 'payment_status');
-            $status = !empty($status_terms) ? $status_terms[0]->slug : 'unknown';
+            $payment_status = !empty($status_terms) ? $status_terms[0]->slug : 'unknown';
             
             $payments[] = (object) array(
                 'id' => $payment_id,
@@ -861,7 +863,7 @@ function somity_get_recent_payments_paginated($per_page = 10, $page = 1) {
                 'amount' => get_post_meta($payment_id, '_amount', true),
                 'transaction_id' => get_post_meta($payment_id, '_transaction_id', true),
                 'date' => get_post_meta($payment_id, '_payment_date', true),
-                'status' => $status,
+                'status' => $payment_status,
             );
         }
     }
@@ -875,6 +877,8 @@ function somity_get_recent_payments_paginated($per_page = 10, $page = 1) {
         'current_page' => $page
     );
 }
+
+
 /**
  * Get total payments count
  */
