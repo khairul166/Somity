@@ -94,25 +94,25 @@ get_header();
                         <div class="col-md-4">
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-search"></i></span>
-                                <input type="text" id="payment-search" class="form-control" placeholder="<?php _e('Search by name or ID...', 'somity-manager'); ?>">
+                                <input type="text" id="payment-search" class="form-control" placeholder="<?php _e('Search by name or ID...', 'somity-manager'); ?>" value="<?php echo isset($_GET['search']) ? esc_attr($_GET['search']) : ''; ?>">
                             </div>
                         </div>
                         <div class="col-md-3">
                             <select id="payment-filter" class="form-select">
-                                <option value="all"><?php _e('All Statuses', 'somity-manager'); ?></option>
-                                <option value="pending"><?php _e('Pending', 'somity-manager'); ?></option>
-                                <option value="approved"><?php _e('Approved', 'somity-manager'); ?></option>
-                                <option value="rejected"><?php _e('Rejected', 'somity-manager'); ?></option>
+                                <option value="all" <?php selected(isset($_GET['status']) ? $_GET['status'] : 'all', 'all'); ?>><?php _e('All Statuses', 'somity-manager'); ?></option>
+                                <option value="pending" <?php selected(isset($_GET['status']) ? $_GET['status'] : 'all', 'pending'); ?>><?php _e('Pending', 'somity-manager'); ?></option>
+                                <option value="approved" <?php selected(isset($_GET['status']) ? $_GET['status'] : 'all', 'approved'); ?>><?php _e('Approved', 'somity-manager'); ?></option>
+                                <option value="rejected" <?php selected(isset($_GET['status']) ? $_GET['status'] : 'all', 'rejected'); ?>><?php _e('Rejected', 'somity-manager'); ?></option>
                             </select>
                         </div>
                         <div class="col-md-3">
                             <select id="month-filter" class="form-select">
-                                <option value="all"><?php _e('All Months', 'somity-manager'); ?></option>
+                                <option value="all" <?php selected(isset($_GET['month']) ? $_GET['month'] : 'all', 'all'); ?>><?php _e('All Months', 'somity-manager'); ?></option>
                                 <?php
                                 // Generate month options for the current year
                                 for ($i = 1; $i <= 12; $i++) {
                                     $month_name = date('F Y', mktime(0, 0, 0, $i, 1, date('Y')));
-                                    echo '<option value="' . $i . '">' . $month_name . '</option>';
+                                    echo '<option value="' . $i . '" ' . selected(isset($_GET['month']) ? $_GET['month'] : 'all', $i, false) . '>' . $month_name . '</option>';
                                 }
                                 ?>
                             </select>
@@ -129,7 +129,7 @@ get_header();
                         <h5 class="mb-0"><?php _e('Recent Payments', 'somity-manager'); ?></h5>
                         <div>
                             <button id="export-payments" class="btn btn-sm btn-outline-primary me-2"><i class="bi bi-download"></i> <?php _e('Export', 'somity-manager'); ?></button>
-                            <a href="<?php echo esc_url(home_url('/add-payment/')); ?>" class="btn btn-sm btn-primary"><i class="bi bi-plus-circle"></i> <?php _e('Add Payment', 'somity-manager'); ?></a>
+                            <a href="<?php echo esc_url(home_url('/submit-payment/')); ?>" class="btn btn-sm btn-primary"><i class="bi bi-plus-circle"></i> <?php _e('Add Payment', 'somity-manager'); ?></a>
                         </div>
                     </div>
                     <div class="card-body p-0">
@@ -236,10 +236,18 @@ get_header();
                         <nav>
                             <ul class="pagination mb-0">
                                 <?php
+                                // Build query parameters array for pagination links
+                                $query_params = array(
+                                    'status' => $status,
+                                    'search' => $search,
+                                    'month' => $month
+                                );
+                                
                                 // Previous page
                                 if ($payments_data['current_page'] > 1) {
                                     $prev_page = $payments_data['current_page'] - 1;
-                                    echo '<li class="page-item"><a class="page-link" href="' . esc_url(add_query_arg('paged', $prev_page)) . '">' . __('Previous', 'somity-manager') . '</a></li>';
+                                    $prev_link = add_query_arg(array_merge($query_params, array('paged' => $prev_page)));
+                                    echo '<li class="page-item"><a class="page-link" href="' . esc_url($prev_link) . '">' . __('Previous', 'somity-manager') . '</a></li>';
                                 } else {
                                     echo '<li class="page-item disabled"><a class="page-link" href="#" tabindex="-1">' . __('Previous', 'somity-manager') . '</a></li>';
                                 }
@@ -249,14 +257,16 @@ get_header();
                                     if ($i == $payments_data['current_page']) {
                                         echo '<li class="page-item active"><a class="page-link" href="#">' . $i . '</a></li>';
                                     } else {
-                                        echo '<li class="page-item"><a class="page-link" href="' . esc_url(add_query_arg('paged', $i)) . '">' . $i . '</a></li>';
+                                        $page_link = add_query_arg(array_merge($query_params, array('paged' => $i)));
+                                        echo '<li class="page-item"><a class="page-link" href="' . esc_url($page_link) . '">' . $i . '</a></li>';
                                     }
                                 }
                                 
                                 // Next page
                                 if ($payments_data['current_page'] < $payments_data['pages']) {
                                     $next_page = $payments_data['current_page'] + 1;
-                                    echo '<li class="page-item"><a class="page-link" href="' . esc_url(add_query_arg('paged', $next_page)) . '">' . __('Next', 'somity-manager') . '</a></li>';
+                                    $next_link = add_query_arg(array_merge($query_params, array('paged' => $next_page)));
+                                    echo '<li class="page-item"><a class="page-link" href="' . esc_url($next_link) . '">' . __('Next', 'somity-manager') . '</a></li>';
                                 } else {
                                     echo '<li class="page-item disabled"><a class="page-link" href="#" tabindex="-1">' . __('Next', 'somity-manager') . '</a></li>';
                                 }
