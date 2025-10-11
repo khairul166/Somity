@@ -522,3 +522,32 @@ function somity_custom_registration_handler() {
     }
 }
 add_action('init', 'somity_custom_registration_handler');
+
+
+/**
+ * Create custom database table for installments
+ */
+function somity_create_installments_table() {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'somity_installments';
+    $charset_collate = $wpdb->get_charset_collate();
+    
+    $sql = "CREATE TABLE $table_name (
+        id mediumint(9) NOT NULL AUTO_INCREMENT,
+        member_id mediumint(9) NOT NULL,
+        amount decimal(10,2) NOT NULL,
+        due_date date NOT NULL,
+        status varchar(20) NOT NULL DEFAULT 'pending',
+        created_at datetime NOT NULL,
+        updated_at datetime NOT NULL,
+        PRIMARY KEY  (id),
+        KEY member_id (member_id),
+        KEY status (status),
+        KEY due_date (due_date)
+    ) $charset_collate;";
+    
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    dbDelta($sql);
+}
+add_action('after_switch_theme', 'somity_create_installments_table');

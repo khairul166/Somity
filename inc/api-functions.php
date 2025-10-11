@@ -1241,87 +1241,86 @@ function somity_get_members_paginated($per_page = 1, $page = 1, $status = 'all',
 
 
 
-//Installment Functions
 /**
  * Get all installments with pagination and filters
  */
 function somity_get_installments_paginated($per_page = 10, $page = 1, $status = 'all', $search = '', $month = 'all') {
     $offset = ($page - 1) * $per_page;
     
+    // Get all users with the subscriber role
     $args = array(
-        'post_type' => 'installment',
-        'post_status' => 'publish',
-        'posts_per_page' => $per_page,
-        'offset' => $offset,
-        'orderby' => 'date',
-        'order' => 'DESC',
-        'paged' => $page, // Add paged parameter
+        'role' => 'subscriber',
+        'number' => -1, // Get all users first, we'll paginate manually
+        'orderby' => 'display_name',
+        'order' => 'ASC',
     );
     
     // Handle search filter
     if (!empty($search)) {
-        $args['s'] = $search;
+        $args['search'] = '*' . $search . '*';
     }
     
-    // Handle status filter
-    if ($status !== 'all') {
-        $args['tax_query'] = array(
-            array(
-                'taxonomy' => 'installment_status',
-                'field' => 'slug',
-                'terms' => $status,
-            ),
-        );
-    }
-    
-    // Handle month filter
-    if ($month !== 'all') {
-        $month = intval($month);
-        $year = date('Y');
-        
-        $args['meta_query'] = array(
-            array(
-                'key' => '_due_date',
-                'value' => $year . '-' . str_pad($month, 2, '0', STR_PAD_LEFT) . '%',
-                'compare' => 'LIKE',
-            ),
-        );
-    }
-    
-    $installments_query = new WP_Query($args);
+    $users_query = new WP_User_Query($args);
     
     $installments = array();
     
-    if ($installments_query->have_posts()) {
-        while ($installments_query->have_posts()) {
-            $installments_query->the_post();
-            $installment_id = get_the_ID();
-            $status_terms = wp_get_post_terms($installment_id, 'installment_status');
-            $status = !empty($status_terms) ? $status_terms[0]->slug : 'unknown';
+    if (!empty($users_query->get_results())) {
+        foreach ($users_query->get_results() as $user) {
+            // Get all installments for this user
+            $user_installments = get_user_meta($user->ID, '_installments', true);
             
-            $member_id = get_post_meta($installment_id, '_member_id', true);
-            $member = get_user_by('id', $member_id);
+            if (!is_array($user_installments)) {
+                $user_installments = array();
+            }
             
-            $installments[] = (object) array(
-                'id' => $installment_id,
-                'amount' => get_post_meta($installment_id, '_amount', true),
-                'due_date' => get_post_meta($installment_id, '_due_date', true),
-                'member_id' => $member_id,
-                'member_name' => $member ? $member->display_name : __('Unknown', 'somity-manager'),
-                'status' => $status,
-            );
+            // Filter installments by status and month
+            foreach ($user_installments as $installment) {
+                // Skip if status filter is set and doesn't match
+                if ($status !== 'all' && $installment['status'] !== $status) {
+                    continue;
+                }
+                
+                // Skip if month filter is set and doesn't match
+                if ($month !== 'all') {
+                    $installment_month = date('n', strtotime($installment['due_date']));
+                    if ($installment_month != $month) {
+                        continue;
+                    }
+                }
+                
+                // Add installment to the list
+                $installments[] = (object) array(
+                    'id' => $installment['id'],
+                    'amount' => $installment['amount'],
+                    'due_date' => $installment['due_date'],
+                    'member_id' => $user->ID,
+                    'member_name' => $user->display_name,
+                    'status' => $installment['status'],
+                );
+            }
         }
     }
     
-    wp_reset_postdata();
+    // Sort installments by due date
+    usort($installments, function($a, $b) {
+        return strtotime($b->due_date) - strtotime($a->due_date);
+    });
+    
+    // Calculate pagination
+    $total_installments = count($installments);
+    $total_pages = ceil($total_installments / $per_page);
+    
+    // Slice the array to get only the current page's installments
+    $current_page_installments = array_slice($installments, $offset, $per_page);
     
     return array(
-        'items' => $installments,
-        'total' => $installments_query->found_posts,
-        'pages' => $installments_query->max_num_pages,
+        'items' => $current_page_installments,
+        'total' => $total_installments,
+        'pages' => $total_pages,
         'current_page' => $page
     );
 }
+
 
 /**
  * Get installment by ID
@@ -1353,33 +1352,34 @@ function somity_get_installments_paginated($per_page = 10, $page = 1, $status = 
  * Create installment for a member
  */
 function somity_create_installment($member_id, $amount, $due_date) {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'somity_installments';
+    
     $member = get_user_by('id', $member_id);
     
     if (!$member || !in_array('subscriber', $member->roles)) {
         return false;
     }
     
-    $installment_data = array(
-        'post_title' => 'Installment for ' . $member->display_name,
-        'post_content' => 'Monthly installment payment due on ' . $due_date,
-        'post_status' => 'publish',
-        'post_author' => get_current_user_id(),
-        'post_type' => 'installment',
+    $data = array(
+        'member_id' => $member_id,
+        'amount' => $amount,
+        'due_date' => $due_date,
+        'status' => 'pending',
+        'created_at' => current_time('mysql'),
+        'updated_at' => current_time('mysql'),
     );
     
-    $installment_id = wp_insert_post($installment_data);
+    $format = array('%d', '%f', '%s', '%s', '%s', '%s');
     
-    if (is_wp_error($installment_id)) {
+    $result = $wpdb->insert($table_name, $data, $format);
+    
+    if (!$result) {
         return false;
     }
     
-    // Save installment meta
-    update_post_meta($installment_id, '_member_id', $member_id);
-    update_post_meta($installment_id, '_amount', $amount);
-    update_post_meta($installment_id, '_due_date', $due_date);
-    
-    // Set installment status to pending
-    wp_set_post_terms($installment_id, 'pending', 'installment_status');
+    $installment_id = $wpdb->insert_id;
     
     // Create activity record
     $activity_data = array(
@@ -1420,25 +1420,16 @@ function somity_generate_yearly_installments($member_id, $amount, $year = null) 
         $due_date = $year . '-' . str_pad($month, 2, '0', STR_PAD_LEFT) . '-01';
         
         // Check if installment already exists for this month
-        $existing_args = array(
-            'post_type' => 'installment',
-            'post_status' => 'publish',
-            'posts_per_page' => 1,
-            'meta_query' => array(
-                array(
-                    'key' => '_member_id',
-                    'value' => $member_id,
-                ),
-                array(
-                    'key' => '_due_date',
-                    'value' => $due_date,
-                ),
-            ),
-        );
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'somity_installments';
         
-        $existing_query = new WP_Query($existing_args);
+        $exists = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $table_name 
+             WHERE member_id = %d AND MONTH(due_date) = %d AND YEAR(due_date) = %d",
+            $member_id, $month, $year
+        ));
         
-        if (!$existing_query->have_posts()) {
+        if (!$exists) {
             $installment_id = somity_create_installment($member_id, $amount, $due_date);
             
             if ($installment_id) {
@@ -1454,74 +1445,37 @@ function somity_generate_yearly_installments($member_id, $amount, $year = null) 
  * Get total pending installments
  */
 function somity_get_total_pending_installments() {
-    $args = array(
-        'post_type' => 'installment',
-        'post_status' => 'publish',
-        'posts_per_page' => -1,
-        'tax_query' => array(
-            array(
-                'taxonomy' => 'installment_status',
-                'field' => 'slug',
-                'terms' => 'pending',
-            ),
-        ),
-    );
+    global $wpdb;
     
-    $installments_query = new WP_Query($args);
+    $table_name = $wpdb->prefix . 'somity_installments';
     
-    return $installments_query->found_posts;
+    return $wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE status = 'pending'");
 }
 
 /**
  * Get total paid installments
  */
 function somity_get_total_paid_installments() {
-    $args = array(
-        'post_type' => 'installment',
-        'post_status' => 'publish',
-        'posts_per_page' => -1,
-        'tax_query' => array(
-            array(
-                'taxonomy' => 'installment_status',
-                'field' => 'slug',
-                'terms' => 'paid',
-            ),
-        ),
-    );
+    global $wpdb;
     
-    $installments_query = new WP_Query($args);
+    $table_name = $wpdb->prefix . 'somity_installments';
     
-    return $installments_query->found_posts;
+    return $wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE status = 'paid'");
 }
 
 /**
  * Get total overdue installments
  */
 function somity_get_total_overdue_installments() {
-    $args = array(
-        'post_type' => 'installment',
-        'post_status' => 'publish',
-        'posts_per_page' => -1,
-        'tax_query' => array(
-            array(
-                'taxonomy' => 'installment_status',
-                'field' => 'slug',
-                'terms' => 'pending',
-            ),
-        ),
-        'meta_query' => array(
-            array(
-                'key' => '_due_date',
-                'value' => date('Y-m-d'),
-                'compare' => '<',
-                'type' => 'DATE',
-            ),
-        ),
-    );
+    global $wpdb;
     
-    $installments_query = new WP_Query($args);
+    $table_name = $wpdb->prefix . 'somity_installments';
+    $today = date('Y-m-d');
     
-    return $installments_query->found_posts;
+    return $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM $table_name WHERE status = 'pending' AND due_date < %s",
+        $today
+    ));
 }
 
 /**
@@ -1589,6 +1543,9 @@ function somity_ajax_generate_installments() {
     }
 }
 
+/**
+ * AJAX handler for marking installment as paid
+ */
 add_action('wp_ajax_mark_installment_paid', 'somity_ajax_mark_installment_paid');
 function somity_ajax_mark_installment_paid() {
     check_ajax_referer('somity-nonce', 'nonce');
@@ -1603,24 +1560,40 @@ function somity_ajax_mark_installment_paid() {
         wp_send_json_error(array('message' => __('Invalid installment ID.', 'somity-manager')));
     }
     
-    $installment = get_post($installment_id);
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'somity_installments';
     
-    if (!$installment || $installment->post_type !== 'installment') {
-        wp_send_json_error(array('message' => __('Invalid installment.', 'somity-manager')));
+    // Get installment details
+    $installment = $wpdb->get_row($wpdb->prepare(
+        "SELECT i.*, m.display_name as member_name FROM $table_name i
+         INNER JOIN {$wpdb->users} m ON i.member_id = m.ID
+         WHERE i.id = %d",
+        $installment_id
+    ));
+    
+    if (!$installment) {
+        wp_send_json_error(array('message' => __('Installment not found.', 'somity-manager')));
     }
     
     // Update installment status
-    wp_set_post_terms($installment_id, 'paid', 'installment_status');
+    $result = $wpdb->update(
+        $table_name,
+        array(
+            'status' => 'paid',
+            'updated_at' => current_time('mysql'),
+        ),
+        array('id' => $installment_id),
+        array('%s', '%s') // both status and updated_at are strings
+    );
     
-    // Get installment details
-    $amount = get_post_meta($installment_id, '_amount', true);
-    $member_id = get_post_meta($installment_id, '_member_id', true);
-    $member = get_user_by('id', $member_id);
+    if ($result === false) {
+        wp_send_json_error(array('message' => __('Error updating installment.', 'somity-manager')));
+    }
     
     // Create activity record
     $activity_data = array(
         'post_title' => 'Installment Paid',
-        'post_content' => 'Installment of ' . $amount . ' by ' . $member->display_name . ' was marked as paid',
+        'post_content' => 'Installment of ' . $installment->amount . ' by ' . $installment->member_name . ' was marked as paid',
         'post_status' => 'publish',
         'post_author' => get_current_user_id(),
         'post_type' => 'activity',
@@ -1634,6 +1607,7 @@ function somity_ajax_mark_installment_paid() {
     
     wp_send_json_success(array('message' => __('Installment has been marked as paid successfully.', 'somity-manager')));
 }
+
 
 add_action('wp_ajax_export_installments', 'somity_ajax_export_installments');
 function somity_ajax_export_installments() {
