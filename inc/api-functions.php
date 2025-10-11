@@ -1245,77 +1245,58 @@ function somity_get_members_paginated($per_page = 1, $page = 1, $status = 'all',
  * Get all installments with pagination and filters
  */
 function somity_get_installments_paginated($per_page = 10, $page = 1, $status = 'all', $search = '', $month = 'all') {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'somity_installments';
     $offset = ($page - 1) * $per_page;
     
-    // Get all users with the subscriber role
-    $args = array(
-        'role' => 'subscriber',
-        'number' => -1, // Get all users first, we'll paginate manually
-        'orderby' => 'display_name',
-        'order' => 'ASC',
-    );
+    // Build the base query
+    $query = "SELECT i.*, u.display_name as member_name 
+              FROM $table_name i
+              LEFT JOIN {$wpdb->users} u ON i.member_id = u.ID";
+    
+    $count_query = "SELECT COUNT(*) FROM $table_name i
+                    LEFT JOIN {$wpdb->users} u ON i.member_id = u.ID";
+    
+    // Initialize where conditions array
+    $where_conditions = array();
+    
+    // Handle status filter
+    if ($status !== 'all') {
+        $where_conditions[] = $wpdb->prepare("i.status = %s", $status);
+    }
     
     // Handle search filter
     if (!empty($search)) {
-        $args['search'] = '*' . $search . '*';
+        $where_conditions[] = $wpdb->prepare("u.display_name LIKE %s", '%' . $wpdb->esc_like($search) . '%');
     }
     
-    $users_query = new WP_User_Query($args);
-    
-    $installments = array();
-    
-    if (!empty($users_query->get_results())) {
-        foreach ($users_query->get_results() as $user) {
-            // Get all installments for this user
-            $user_installments = get_user_meta($user->ID, '_installments', true);
-            
-            if (!is_array($user_installments)) {
-                $user_installments = array();
-            }
-            
-            // Filter installments by status and month
-            foreach ($user_installments as $installment) {
-                // Skip if status filter is set and doesn't match
-                if ($status !== 'all' && $installment['status'] !== $status) {
-                    continue;
-                }
-                
-                // Skip if month filter is set and doesn't match
-                if ($month !== 'all') {
-                    $installment_month = date('n', strtotime($installment['due_date']));
-                    if ($installment_month != $month) {
-                        continue;
-                    }
-                }
-                
-                // Add installment to the list
-                $installments[] = (object) array(
-                    'id' => $installment['id'],
-                    'amount' => $installment['amount'],
-                    'due_date' => $installment['due_date'],
-                    'member_id' => $user->ID,
-                    'member_name' => $user->display_name,
-                    'status' => $installment['status'],
-                );
-            }
-        }
+    // Handle month filter
+    if ($month !== 'all') {
+        $where_conditions[] = $wpdb->prepare("MONTH(i.due_date) = %d", intval($month));
     }
     
-    // Sort installments by due date
-    usort($installments, function($a, $b) {
-        return strtotime($b->due_date) - strtotime($a->due_date);
-    });
+    // Add where conditions to queries if any exist
+    if (!empty($where_conditions)) {
+        $where_clause = " WHERE " . implode(" AND ", $where_conditions);
+        $query .= $where_clause;
+        $count_query .= $where_clause;
+    }
+    
+    // Add order and pagination to the main query
+    $query .= " ORDER BY i.due_date DESC, i.id DESC";
+    $query .= $wpdb->prepare(" LIMIT %d OFFSET %d", $per_page, $offset);
+    
+    // Get the results
+    $installments = $wpdb->get_results($query);
+    $total = $wpdb->get_var($count_query);
     
     // Calculate pagination
-    $total_installments = count($installments);
-    $total_pages = ceil($total_installments / $per_page);
-    
-    // Slice the array to get only the current page's installments
-    $current_page_installments = array_slice($installments, $offset, $per_page);
+    $total_pages = ceil($total / $per_page);
     
     return array(
-        'items' => $current_page_installments,
-        'total' => $total_installments,
+        'items' => $installments,
+        'total' => $total,
         'pages' => $total_pages,
         'current_page' => $page
     );

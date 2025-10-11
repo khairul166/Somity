@@ -81,36 +81,38 @@ get_header();
                 
                 <!-- Search and Filter -->
                 <div class="search-filter mb-4">
-                    <div class="row g-3">
-                        <div class="col-md-4">
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-search"></i></span>
-                                <input type="text" id="installment-search" class="form-control" placeholder="<?php _e('Search by member name...', 'somity-manager'); ?>" value="<?php echo isset($_GET['search']) ? esc_attr($_GET['search']) : ''; ?>">
+                    <form id="installments-filter-form" method="get">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                    <input type="text" name="search" class="form-control" placeholder="<?php _e('Search by member name...', 'somity-manager'); ?>" value="<?php echo isset($_GET['search']) ? esc_attr($_GET['search']) : ''; ?>">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <select name="status" class="form-select">
+                                    <option value="all" <?php selected(isset($_GET['status']) ? $_GET['status'] : 'all', 'all'); ?>><?php _e('All Statuses', 'somity-manager'); ?></option>
+                                    <option value="pending" <?php selected(isset($_GET['status']) ? $_GET['status'] : 'all', 'pending'); ?>><?php _e('Pending', 'somity-manager'); ?></option>
+                                    <option value="paid" <?php selected(isset($_GET['status']) ? $_GET['status'] : 'all', 'paid'); ?>><?php _e('Paid', 'somity-manager'); ?></option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <select name="month" class="form-select">
+                                    <option value="all" <?php selected(isset($_GET['month']) ? $_GET['month'] : 'all', 'all'); ?>><?php _e('All Months', 'somity-manager'); ?></option>
+                                    <?php
+                                    // Generate month options for the current year
+                                    for ($i = 1; $i <= 12; $i++) {
+                                        $month_name = date('F Y', mktime(0, 0, 0, $i, 1, date('Y')));
+                                        echo '<option value="' . $i . '" ' . selected(isset($_GET['month']) ? $_GET['month'] : 'all', $i, false) . '>' . $month_name . '</option>';
+                                    }
+                                    ?>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-primary w-100"><?php _e('Filter', 'somity-manager'); ?></button>
                             </div>
                         </div>
-                        <div class="col-md-3">
-                            <select id="installment-filter" class="form-select">
-                                <option value="all" <?php selected(isset($_GET['status']) ? $_GET['status'] : 'all', 'all'); ?>><?php _e('All Statuses', 'somity-manager'); ?></option>
-                                <option value="pending" <?php selected(isset($_GET['status']) ? $_GET['status'] : 'all', 'pending'); ?>><?php _e('Pending', 'somity-manager'); ?></option>
-                                <option value="paid" <?php selected(isset($_GET['status']) ? $_GET['status'] : 'all', 'paid'); ?>><?php _e('Paid', 'somity-manager'); ?></option>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <select id="month-filter" class="form-select">
-                                <option value="all" <?php selected(isset($_GET['month']) ? $_GET['month'] : 'all', 'all'); ?>><?php _e('All Months', 'somity-manager'); ?></option>
-                                <?php
-                                // Generate month options for the current year
-                                for ($i = 1; $i <= 12; $i++) {
-                                    $month_name = date('F Y', mktime(0, 0, 0, $i, 1, date('Y')));
-                                    echo '<option value="' . $i . '" ' . selected(isset($_GET['month']) ? $_GET['month'] : 'all', $i, false) . '>' . $month_name . '</option>';
-                                }
-                                ?>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <button id="filter-btn" class="btn btn-primary w-100"><?php _e('Filter', 'somity-manager'); ?></button>
-                        </div>
-                    </div>
+                    </form>
                 </div>
                 
                 <!-- Installments Table -->
@@ -149,6 +151,7 @@ get_header();
                                     
                                     // Get paginated installments
                                     $installments_data = somity_get_installments_paginated($per_page, $paged, $status, $search, $month);
+                                    
                                     
                                     if ($installments_data['items']) {
                                         foreach ($installments_data['items'] as $installment) {
@@ -242,7 +245,7 @@ get_header();
                                     }
                                 }
                                 
-                                // Get current page URL
+                                // Get current page URL without query parameters
                                 $current_url = get_permalink();
                                 
                                 // Previous page

@@ -551,3 +551,27 @@ function somity_create_installments_table() {
     dbDelta($sql);
 }
 add_action('after_switch_theme', 'somity_create_installments_table');
+
+function somity_payment_table(){
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'somity_payments';
+    $charset_collate = $wpdb->get_charset_collate();
+    $sql = "CREATE TABLE $table_name (
+        id mediumint(9) NOT NULL AUTO_INCREMENT,
+        member_id mediumint(9) NOT NULL,
+        payment_id mediumint(9) NOT NULL,
+        amount decimal(10,2) NOT NULL,
+        payment_date datetime NOT NULL,
+        payment_method varchar(50) NOT NULL,
+        transaction_id varchar(100) DEFAULT NULL,
+        created_at datetime NOT NULL,
+        updated_at datetime NOT NULL,
+        PRIMARY KEY  (id),
+        KEY member_id (member_id),
+        KEY installment_id (payment_id),
+        KEY payment_date (payment_date)
+    ) $charset_collate;";
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    dbDelta($sql);
+}
+add_action('init', 'somity_payment_table');
