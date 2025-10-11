@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Template Name: Installments
  */
@@ -19,7 +20,7 @@ get_header();
             <div class="dashboard-sidebar">
                 <div class="user-profile">
                     <div class="user-avatar">
-                        <?php 
+                        <?php
                         $current_user = wp_get_current_user();
                         $initials = substr($current_user->first_name, 0, 1) . substr($current_user->last_name, 0, 1);
                         echo esc_html($initials);
@@ -30,7 +31,7 @@ get_header();
                         <p><?php _e('Administrator', 'somity-manager'); ?></p>
                     </div>
                 </div>
-                
+
                 <ul class="sidebar-menu">
                     <li><a href="<?php echo esc_url(home_url('/admin-dashboard/')); ?>"><i class="bi bi-speedometer2"></i> <?php _e('Dashboard', 'somity-manager'); ?></a></li>
                     <li><a href="<?php echo esc_url(home_url('/manage-members/')); ?>"><i class="bi bi-people"></i> <?php _e('Manage Members', 'somity-manager'); ?></a></li>
@@ -42,12 +43,12 @@ get_header();
                 </ul>
             </div>
         </div>
-        
+
         <!-- Main Content -->
         <div class="col-lg-9">
             <div class="dashboard-content">
                 <h2 class="mb-4"><?php _e('Installments Management', 'somity-manager'); ?></h2>
-                
+
                 <!-- Stats Cards -->
                 <div class="row mb-4">
                     <div class="col-md-4">
@@ -78,10 +79,10 @@ get_header();
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Search and Filter -->
                 <div class="search-filter mb-4">
-                    <form id="installments-filter-form" method="get">
+                    <form id="installments-filter-form" method="get" action="<?php echo esc_url(get_permalink()); ?>">
                         <div class="row g-3">
                             <div class="col-md-4">
                                 <div class="input-group">
@@ -114,7 +115,7 @@ get_header();
                         </div>
                     </form>
                 </div>
-                
+
                 <!-- Installments Table -->
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
@@ -138,21 +139,28 @@ get_header();
                                 </thead>
                                 <tbody>
                                     <?php
+                                    // Get current page number from query string or URL
+                                    if (get_query_var('paged')) {
+                                        $paged = get_query_var('paged');
+                                    } elseif (isset($_GET['paged'])) {
+                                        $paged = intval($_GET['paged']);
+                                    } else {
+                                        $paged = 1;
+                                    }
                                     // Get current page number from query string
-                                    $paged = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
-                                    
+                                    // $paged = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
+
                                     // Get per page value
-                                    $per_page = isset($_GET['per_page']) ? intval($_GET['per_page']) : 10;
-                                    
+                                    $per_page = isset($_GET['per_page']) ? intval($_GET['per_page']) : 2;
+
                                     // Get filter values
                                     $status = isset($_GET['status']) ? sanitize_text_field($_GET['status']) : 'all';
                                     $search = isset($_GET['search']) ? sanitize_text_field($_GET['search']) : '';
                                     $month = isset($_GET['month']) ? sanitize_text_field($_GET['month']) : 'all';
-                                    
+
                                     // Get paginated installments
                                     $installments_data = somity_get_installments_paginated($per_page, $paged, $status, $search, $month);
-                                    
-                                    
+
                                     if ($installments_data['items']) {
                                         foreach ($installments_data['items'] as $installment) {
                                             // Get status icon
@@ -165,10 +173,10 @@ get_header();
                                                     $status_icon = '<i class="bi bi-check-circle-fill"></i>';
                                                     break;
                                             }
-                                            
+
                                             // Check if installment is overdue
                                             $is_overdue = ($installment->status === 'pending' && strtotime($installment->due_date) < time());
-                                            ?>
+                                    ?>
                                             <tr>
                                                 <td>
                                                     <div class="d-flex align-items-center">
@@ -204,7 +212,7 @@ get_header();
                                                     </div>
                                                 </td>
                                             </tr>
-                                            <?php
+                                    <?php
                                         }
                                     } else {
                                         echo '<tr><td colspan="5" class="text-center">' . __('No installments found.', 'somity-manager') . '</td></tr>';
@@ -216,7 +224,7 @@ get_header();
                     </div>
                     <div class="card-footer d-flex justify-content-between align-items-center">
                         <div>
-                            <?php 
+                            <?php
                             $start_record = ($installments_data['current_page'] - 1) * $per_page + 1;
                             $end_record = min($start_record + $per_page - 1, $installments_data['total']);
                             echo sprintf(
@@ -237,17 +245,17 @@ get_header();
                                     'month' => $month,
                                     'per_page' => $per_page
                                 );
-                                
+
                                 // Remove empty parameters
                                 foreach ($query_params as $key => $value) {
                                     if ($value === 'all' || $value === '') {
                                         unset($query_params[$key]);
                                     }
                                 }
-                                
+
                                 // Get current page URL without query parameters
                                 $current_url = get_permalink();
-                                
+
                                 // Previous page
                                 if ($installments_data['current_page'] > 1) {
                                     $prev_page = $installments_data['current_page'] - 1;
@@ -256,11 +264,11 @@ get_header();
                                 } else {
                                     echo '<li class="page-item disabled"><a class="page-link" href="#" tabindex="-1">' . __('Previous', 'somity-manager') . '</a></li>';
                                 }
-                                
+
                                 // Page numbers - only show a limited range
                                 $start_page = max(1, $installments_data['current_page'] - 2);
                                 $end_page = min($installments_data['pages'], $installments_data['current_page'] + 2);
-                                
+
                                 // First page
                                 if ($start_page > 1) {
                                     $first_link = add_query_arg(array_merge($query_params, array('paged' => 1)), $current_url);
@@ -269,7 +277,7 @@ get_header();
                                         echo '<li class="page-item disabled"><a class="page-link" href="#">...</a></li>';
                                     }
                                 }
-                                
+
                                 // Page numbers
                                 for ($i = $start_page; $i <= $end_page; $i++) {
                                     if ($i == $installments_data['current_page']) {
@@ -279,7 +287,7 @@ get_header();
                                         echo '<li class="page-item"><a class="page-link" href="' . esc_url($page_link) . '">' . $i . '</a></li>';
                                     }
                                 }
-                                
+
                                 // Last page
                                 if ($end_page < $installments_data['pages']) {
                                     if ($end_page < $installments_data['pages'] - 1) {
@@ -288,7 +296,7 @@ get_header();
                                     $last_link = add_query_arg(array_merge($query_params, array('paged' => $installments_data['pages'])), $current_url);
                                     echo '<li class="page-item"><a class="page-link" href="' . esc_url($last_link) . '">' . $installments_data['pages'] . '</a></li>';
                                 }
-                                
+
                                 // Next page
                                 if ($installments_data['current_page'] < $installments_data['pages']) {
                                     $next_page = $installments_data['current_page'] + 1;

@@ -1255,8 +1255,7 @@ function somity_get_installments_paginated($per_page = 10, $page = 1, $status = 
               FROM $table_name i
               LEFT JOIN {$wpdb->users} u ON i.member_id = u.ID";
     
-    $count_query = "SELECT COUNT(*) FROM $table_name i
-                    LEFT JOIN {$wpdb->users} u ON i.member_id = u.ID";
+    $count_query = "SELECT COUNT(*) FROM $table_name i";
     
     // Initialize where conditions array
     $where_conditions = array();
@@ -1292,7 +1291,7 @@ function somity_get_installments_paginated($per_page = 10, $page = 1, $status = 
     $total = $wpdb->get_var($count_query);
     
     // Calculate pagination
-    $total_pages = ceil($total / $per_page);
+    $total_pages = $total > 0 ? ceil($total / $per_page) : 1;
     
     return array(
         'items' => $installments,
@@ -1301,8 +1300,6 @@ function somity_get_installments_paginated($per_page = 10, $page = 1, $status = 
         'current_page' => $page
     );
 }
-
-
 /**
  * Get installment by ID
  */
