@@ -245,12 +245,35 @@
             window.location.href = currentUrl.toString();
         });
 
-        // Filter button
-        $('#filter-btn').on('click', function () {
-            // Reset to first page when filtering
-            var currentUrl = new URL(window.location.href);
-            currentUrl.searchParams.set('paged', '1');
-            window.location.href = currentUrl.toString();
+        // Filter functionality
+        $('#filter-btn').on('click', function() {
+            var status = $('#installment-filter').val();
+            var search = $('#installment-search').val();
+            var month = $('#month-filter').val();
+            
+            var url = new URL(window.location.href);
+            
+            // Clear existing search parameters
+            url.searchParams.delete('status');
+            url.searchParams.delete('search');
+            url.searchParams.delete('month');
+            url.searchParams.delete('paged');
+            
+            // Add new search parameters
+            url.searchParams.set('status', status);
+            url.searchParams.set('search', search);
+            url.searchParams.set('month', month);
+            url.searchParams.set('paged', 1);
+            
+            window.location.href = url.toString();
+        });
+
+        // Export members
+        $('#export-members').on('click', function() {
+            var status = $('#member-filter').val();
+            var search = $('#member-search').val();
+            
+            window.location.href = somityAjax.ajaxurl + '?action=export_members&status=' + status + '&search=' + search + '&nonce=' + somityAjax.nonce;
         });
 
         // Export payments
@@ -465,6 +488,123 @@
                     $('#confirm-rejection').html('Reject Member');
                 }
             });
+        });
+        // Export installments
+        $('#export-installments').on('click', function() {
+            var status = $('#installment-filter').val();
+            var search = $('#installment-search').val();
+            var month = $('#month-filter').val();
+            
+            window.location.href = somityAjax.ajaxurl + '?action=export_installments&status=' + status + '&search=' + search + '&month=' + month + '&nonce=' + somityAjax.nonce;
+        });
+
+        // Generate installments button
+        $('#generate-installments').on('click', function() {
+            $('#generateInstallmentsModal').modal('show');
+        });
+        
+        
+        // Toggle member select based on checkbox
+        $('#generate-for-all').on('change', function() {
+            if ($(this).is(':checked')) {
+                $('#member-select').prop('disabled', true);
+            } else {
+                $('#member-select').prop('disabled', false);
+            }
+        });
+        
+        // Confirm generate installments
+        $('#confirm-generate').on('click', function() {
+            var generateForAll = $('#generate-for-all').is(':checked');
+            var memberId = $('#member-select').val();
+            var amount = $('#installment-amount').val();
+            var year = $('#installment-year').val();
+            
+            if (!generateForAll && !memberId) {
+                alert('Please select a member.');
+                return;
+            }
+            
+            if (!amount || amount <= 0) {
+                alert('Please enter a valid amount.');
+                return;
+            }
+            
+            $.ajax({
+                type: 'POST',
+                url: somityAjax.ajaxurl,
+                data: {
+                    action: 'generate_installments',
+                    generate_for_all: generateForAll ? 1 : 0,
+                    member_id: memberId,
+                    amount: amount,
+                    year: year,
+                    nonce: somityAjax.nonce
+                },
+                beforeSend: function() {
+                    $('#confirm-generate').prop('disabled', true);
+                    $('#confirm-generate').html('<i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i> Generating...');
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $('#generateInstallmentsModal').modal('hide');
+                        alert(response.data.message);
+                        location.reload();
+                    } else {
+                        alert(response.data.message);
+                        $('#confirm-generate').prop('disabled', false);
+                        $('#confirm-generate').html('Generate');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    alert(somityAjax.texts.errorMessage);
+                    console.log(xhr.responseText);
+                    $('#confirm-generate').prop('disabled', false);
+                    $('#confirm-generate').html('Generate');
+                }
+            });
+        });
+        
+        // Mark as paid button
+        $('.mark-as-paid').on('click', function() {
+            var installmentId = $(this).data('id');
+            var $btn = $(this);
+            
+            if (confirm('Are you sure you want to mark this installment as paid?')) {
+                $.ajax({
+                    type: 'POST',
+                    url: somityAjax.ajaxurl,
+                    data: {
+                        action: 'mark_installment_paid',
+                        installment_id: installmentId,
+                        nonce: somityAjax.nonce
+                    },
+                    beforeSend: function() {
+                        $btn.prop('disabled', true);
+                        $btn.html('<i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>');
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            // Show success message
+                            alert(response.data.message);
+                            // Reload the page
+                            location.reload();
+                        } else {
+                            // Show error message
+                            alert(response.data.message);
+                            $btn.prop('disabled', false);
+                            $btn.html('<i class="bi bi-check-lg"></i>');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        // Show error message
+                        alert(somityAjax.texts.errorMessage);
+                        console.log(xhr.responseText);
+                        $btn.prop('disabled', false);
+                        $btn.html('<i class="bi bi-check-lg"></i>');
+                    }
+                });
+            }
         });
     });
 

@@ -89,7 +89,7 @@ get_header();
                 </div>
                 
                 <!-- Search and Filter -->
-                <div class="search-filter">
+                <div class="search-filter mb-4">
                     <div class="row g-3">
                         <div class="col-md-4">
                             <div class="input-group">

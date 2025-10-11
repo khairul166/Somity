@@ -259,7 +259,7 @@ get_header();
 
 <?php get_footer(); ?>
 
-<script>
+<!-- <script>
 (function($) {
     'use strict';
     
@@ -269,7 +269,7 @@ get_header();
             var memberId = $(this).data('id');
             var $btn = $(this);
             
-            if (confirm('<?php _e('Are you sure you want to approve this member?', 'somity-manager'); ?>')) {
+            if (confirm('<?php //_e('Are you sure you want to approve this member?', 'somity-manager'); ?>')) {
                 $.ajax({
                     type: 'POST',
                     url: somityAjax.ajaxurl,
@@ -285,12 +285,12 @@ get_header();
                         if (response.success) {
                             location.reload();
                         } else {
-                            alert('<?php _e('Error: ', 'somity-manager'); ?>' + response.data.message);
+                            alert('<?php// _e('Error: ', 'somity-manager'); ?>' + response.data.message);
                             $btn.prop('disabled', false);
                         }
                     },
                     error: function() {
-                        alert('<?php _e('An error occurred. Please try again.', 'somity-manager'); ?>');
+                        alert('<?php //_e('An error occurred. Please try again.', 'somity-manager'); ?>');
                         $btn.prop('disabled', false);
                     }
                 });
@@ -310,7 +310,7 @@ get_header();
             var reason = $('#rejection-reason').val();
             
             if (!reason) {
-                alert('<?php _e('Please provide a reason for rejection.', 'somity-manager'); ?>');
+                alert('<?php //_e('Please provide a reason for rejection.', 'somity-manager'); ?>');
                 return;
             }
             
@@ -331,16 +331,16 @@ get_header();
                         $('#rejectionModal').modal('hide');
                         location.reload();
                     } else {
-                        alert('<?php _e('Error: ', 'somity-manager'); ?>' + response.data.message);
+                        alert('<?php //_e('Error: ', 'somity-manager'); ?>' + response.data.message);
                         $('#confirm-rejection').prop('disabled', false);
                     }
                 },
                 error: function() {
-                    alert('<?php _e('An error occurred. Please try again.', 'somity-manager'); ?>');
+                    alert('<?php //_e('An error occurred. Please try again.', 'somity-manager'); ?>');
                     $('#confirm-rejection').prop('disabled', false);
                 }
             });
         });
     });
 })(jQuery);
-</script>
+</script> -->

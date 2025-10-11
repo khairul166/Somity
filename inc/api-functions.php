@@ -896,61 +896,61 @@ function somity_get_total_payments_count() {
 
 
 
-/**
- * Get all members with pagination
- */
-function somity_get_members_paginated($per_page = 10, $page = 1, $status = 'all', $search = '') {
-    $offset = ($page - 1) * $per_page;
+// /**
+//  * Get all members with pagination
+//  */
+// function somity_get_members_paginated($per_page = 10, $page = 1, $status = 'all', $search = '') {
+//     $offset = ($page - 1) * $per_page;
     
-    $args = array(
-        'role' => 'member',
-        'number' => $per_page,
-        'offset' => $offset,
-        'orderby' => 'registered',
-        'order' => 'DESC',
-    );
+//     $args = array(
+//         'role' => 'member',
+//         'number' => $per_page,
+//         'offset' => $offset,
+//         'orderby' => 'registered',
+//         'order' => 'DESC',
+//     );
     
-    // Handle search filter
-    if (!empty($search)) {
-        $args['search'] = '*' . $search . '*';
-    }
+//     // Handle search filter
+//     if (!empty($search)) {
+//         $args['search'] = '*' . $search . '*';
+//     }
     
-    // Handle status filter
-    if ($status !== 'all') {
-        $args['meta_key'] = '_member_status';
-        $args['meta_value'] = $status;
-    }
+//     // Handle status filter
+//     if ($status !== 'all') {
+//         $args['meta_key'] = '_member_status';
+//         $args['meta_value'] = $status;
+//     }
     
-    $members_query = new WP_User_Query($args);
+//     $members_query = new WP_User_Query($args);
     
-    $members = array();
+//     $members = array();
     
-    if (!empty($members_query->get_results())) {
-        foreach ($members_query->get_results() as $member) {
-            $member_status = get_user_meta($member->ID, '_member_status', true);
-            if (empty($member_status)) {
-                $member_status = 'pending';
-            }
+//     if (!empty($members_query->get_results())) {
+//         foreach ($members_query->get_results() as $member) {
+//             $member_status = get_user_meta($member->ID, '_member_status', true);
+//             if (empty($member_status)) {
+//                 $member_status = 'pending';
+//             }
             
-            $members[] = (object) array(
-                'id' => $member->ID,
-                'name' => $member->display_name,
-                'email' => $member->user_email,
-                'phone' => get_user_meta($member->ID, '_phone', true),
-                'address' => get_user_meta($member->ID, '_address', true),
-                'join_date' => $member->user_registered,
-                'status' => $member_status,
-            );
-        }
-    }
+//             $members[] = (object) array(
+//                 'id' => $member->ID,
+//                 'name' => $member->display_name,
+//                 'email' => $member->user_email,
+//                 'phone' => get_user_meta($member->ID, '_phone', true),
+//                 'address' => get_user_meta($member->ID, '_address', true),
+//                 'join_date' => $member->user_registered,
+//                 'status' => $member_status,
+//             );
+//         }
+//     }
     
-    return array(
-        'items' => $members,
-        'total' => $members_query->get_total(),
-        'pages' => ceil($members_query->get_total() / $per_page),
-        'current_page' => $page
-    );
-}
+//     return array(
+//         'items' => $members,
+//         'total' => $members_query->get_total(),
+//         'pages' => ceil($members_query->get_total() / $per_page),
+//         'current_page' => $page
+//     );
+// }
 
 /**
  * Get member details by ID
@@ -958,7 +958,8 @@ function somity_get_members_paginated($per_page = 10, $page = 1, $status = 'all'
 function somity_get_member_details($member_id) {
     $member = get_user_by('id', $member_id);
     
-    if (!$member || !in_array('member', $member->roles)) {
+    if (!$member || !in_array('subscriber', $member->roles)) {
+        error_log('Member not found or does not have member role for ID ' . $member_id);
         return false;
     }
     
@@ -1180,4 +1181,549 @@ function somity_ajax_reject_member() {
     } else {
         wp_send_json_error(array('message' => __('Error rejecting member.', 'somity-manager')));
     }
+}
+
+/**
+ * Get all members with pagination
+ */
+function somity_get_members_paginated($per_page = 1, $page = 1, $status = 'all', $search = '') {
+    $offset = ($page - 1) * $per_page;
+    
+    $args = array(
+        'role' => 'member',
+        'number' => $per_page,
+        'offset' => $offset,
+        'orderby' => 'registered',
+        'order' => 'DESC',
+    );
+    
+    // Handle search filter
+    if (!empty($search)) {
+        $args['search'] = '*' . $search . '*';
+    }
+    
+    // Handle status filter
+    if ($status !== 'all') {
+        $args['meta_key'] = '_member_status';
+        $args['meta_value'] = $status;
+    }
+    
+    $members_query = new WP_User_Query($args);
+    
+    $members = array();
+    
+    if (!empty($members_query->get_results())) {
+        foreach ($members_query->get_results() as $member) {
+            $member_status = get_user_meta($member->ID, '_member_status', true);
+            if (empty($member_status)) {
+                $member_status = 'pending';
+            }
+            
+            $members[] = (object) array(
+                'id' => $member->ID,
+                'name' => $member->display_name,
+                'email' => $member->user_email,
+                'phone' => get_user_meta($member->ID, '_phone', true),
+                'address' => get_user_meta($member->ID, '_address', true),
+                'join_date' => $member->user_registered,
+                'status' => $member_status,
+            );
+        }
+    }
+    
+    return array(
+        'items' => $members,
+        'total' => $members_query->get_total(),
+        'pages' => ceil($members_query->get_total() / $per_page),
+        'current_page' => $page
+    );
+}
+
+
+
+//Installment Functions
+/**
+ * Get all installments with pagination and filters
+ */
+function somity_get_installments_paginated($per_page = 10, $page = 1, $status = 'all', $search = '', $month = 'all') {
+    $offset = ($page - 1) * $per_page;
+    
+    $args = array(
+        'post_type' => 'installment',
+        'post_status' => 'publish',
+        'posts_per_page' => $per_page,
+        'offset' => $offset,
+        'orderby' => 'date',
+        'order' => 'DESC',
+        'paged' => $page, // Add paged parameter
+    );
+    
+    // Handle search filter
+    if (!empty($search)) {
+        $args['s'] = $search;
+    }
+    
+    // Handle status filter
+    if ($status !== 'all') {
+        $args['tax_query'] = array(
+            array(
+                'taxonomy' => 'installment_status',
+                'field' => 'slug',
+                'terms' => $status,
+            ),
+        );
+    }
+    
+    // Handle month filter
+    if ($month !== 'all') {
+        $month = intval($month);
+        $year = date('Y');
+        
+        $args['meta_query'] = array(
+            array(
+                'key' => '_due_date',
+                'value' => $year . '-' . str_pad($month, 2, '0', STR_PAD_LEFT) . '%',
+                'compare' => 'LIKE',
+            ),
+        );
+    }
+    
+    $installments_query = new WP_Query($args);
+    
+    $installments = array();
+    
+    if ($installments_query->have_posts()) {
+        while ($installments_query->have_posts()) {
+            $installments_query->the_post();
+            $installment_id = get_the_ID();
+            $status_terms = wp_get_post_terms($installment_id, 'installment_status');
+            $status = !empty($status_terms) ? $status_terms[0]->slug : 'unknown';
+            
+            $member_id = get_post_meta($installment_id, '_member_id', true);
+            $member = get_user_by('id', $member_id);
+            
+            $installments[] = (object) array(
+                'id' => $installment_id,
+                'amount' => get_post_meta($installment_id, '_amount', true),
+                'due_date' => get_post_meta($installment_id, '_due_date', true),
+                'member_id' => $member_id,
+                'member_name' => $member ? $member->display_name : __('Unknown', 'somity-manager'),
+                'status' => $status,
+            );
+        }
+    }
+    
+    wp_reset_postdata();
+    
+    return array(
+        'items' => $installments,
+        'total' => $installments_query->found_posts,
+        'pages' => $installments_query->max_num_pages,
+        'current_page' => $page
+    );
+}
+
+/**
+ * Get installment by ID
+ */
+// function somity_get_installment($installment_id) {
+//     $installment = get_post($installment_id);
+    
+//     if (!$installment || $installment->post_type !== 'installment') {
+//         return false;
+//     }
+    
+//     $status_terms = wp_get_post_terms($installment_id, 'installment_status');
+//     $status = !empty($status_terms) ? $status_terms[0]->slug : 'unknown';
+    
+//     $member_id = get_post_meta($installment_id, '_member_id', true);
+//     $member = get_user_by('id', $member_id);
+    
+//     return (object) array(
+//         'id' => $installment->ID,
+//         'amount' => get_post_meta($installment_id, '_amount', true),
+//         'due_date' => get_post_meta($installment_id, '_due_date', true),
+//         'member_id' => $member_id,
+//         'member_name' => $member ? $member->display_name : __('Unknown', 'somity-manager'),
+//         'status' => $status,
+//     );
+// }
+
+/**
+ * Create installment for a member
+ */
+function somity_create_installment($member_id, $amount, $due_date) {
+    $member = get_user_by('id', $member_id);
+    
+    if (!$member || !in_array('subscriber', $member->roles)) {
+        return false;
+    }
+    
+    $installment_data = array(
+        'post_title' => 'Installment for ' . $member->display_name,
+        'post_content' => 'Monthly installment payment due on ' . $due_date,
+        'post_status' => 'publish',
+        'post_author' => get_current_user_id(),
+        'post_type' => 'installment',
+    );
+    
+    $installment_id = wp_insert_post($installment_data);
+    
+    if (is_wp_error($installment_id)) {
+        return false;
+    }
+    
+    // Save installment meta
+    update_post_meta($installment_id, '_member_id', $member_id);
+    update_post_meta($installment_id, '_amount', $amount);
+    update_post_meta($installment_id, '_due_date', $due_date);
+    
+    // Set installment status to pending
+    wp_set_post_terms($installment_id, 'pending', 'installment_status');
+    
+    // Create activity record
+    $activity_data = array(
+        'post_title' => 'Installment Created',
+        'post_content' => 'Installment of ' . $amount . ' created for ' . $member->display_name,
+        'post_status' => 'publish',
+        'post_author' => get_current_user_id(),
+        'post_type' => 'activity',
+    );
+    
+    $activity_id = wp_insert_post($activity_data);
+    
+    if (!is_wp_error($activity_id)) {
+        wp_set_post_terms($activity_id, 'installment', 'activity_type');
+    }
+    
+    return $installment_id;
+}
+
+/**
+ * Generate installments for a member for a year
+ */
+function somity_generate_yearly_installments($member_id, $amount, $year = null) {
+    if (!$year) {
+        $year = date('Y');
+    }
+    
+    $member = get_user_by('id', $member_id);
+    
+    if (!$member || !in_array('subscriber', $member->roles)) {
+        return false;
+    }
+    
+    $created_installments = array();
+    
+    // Generate installments for each month of the year
+    for ($month = 1; $month <= 12; $month++) {
+        $due_date = $year . '-' . str_pad($month, 2, '0', STR_PAD_LEFT) . '-01';
+        
+        // Check if installment already exists for this month
+        $existing_args = array(
+            'post_type' => 'installment',
+            'post_status' => 'publish',
+            'posts_per_page' => 1,
+            'meta_query' => array(
+                array(
+                    'key' => '_member_id',
+                    'value' => $member_id,
+                ),
+                array(
+                    'key' => '_due_date',
+                    'value' => $due_date,
+                ),
+            ),
+        );
+        
+        $existing_query = new WP_Query($existing_args);
+        
+        if (!$existing_query->have_posts()) {
+            $installment_id = somity_create_installment($member_id, $amount, $due_date);
+            
+            if ($installment_id) {
+                $created_installments[] = $installment_id;
+            }
+        }
+    }
+    
+    return $created_installments;
+}
+
+/**
+ * Get total pending installments
+ */
+function somity_get_total_pending_installments() {
+    $args = array(
+        'post_type' => 'installment',
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+        'tax_query' => array(
+            array(
+                'taxonomy' => 'installment_status',
+                'field' => 'slug',
+                'terms' => 'pending',
+            ),
+        ),
+    );
+    
+    $installments_query = new WP_Query($args);
+    
+    return $installments_query->found_posts;
+}
+
+/**
+ * Get total paid installments
+ */
+function somity_get_total_paid_installments() {
+    $args = array(
+        'post_type' => 'installment',
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+        'tax_query' => array(
+            array(
+                'taxonomy' => 'installment_status',
+                'field' => 'slug',
+                'terms' => 'paid',
+            ),
+        ),
+    );
+    
+    $installments_query = new WP_Query($args);
+    
+    return $installments_query->found_posts;
+}
+
+/**
+ * Get total overdue installments
+ */
+function somity_get_total_overdue_installments() {
+    $args = array(
+        'post_type' => 'installment',
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+        'tax_query' => array(
+            array(
+                'taxonomy' => 'installment_status',
+                'field' => 'slug',
+                'terms' => 'pending',
+            ),
+        ),
+        'meta_query' => array(
+            array(
+                'key' => '_due_date',
+                'value' => date('Y-m-d'),
+                'compare' => '<',
+                'type' => 'DATE',
+            ),
+        ),
+    );
+    
+    $installments_query = new WP_Query($args);
+    
+    return $installments_query->found_posts;
+}
+
+/**
+ * Get installment statistics
+ */
+function somity_get_installment_stats() {
+    $total_pending = somity_get_total_pending_installments();
+    $total_paid = somity_get_total_paid_installments();
+    $total_overdue = somity_get_total_overdue_installments();
+    
+    return array(
+        'total_pending' => $total_pending,
+        'total_paid' => $total_paid,
+        'total_overdue' => $total_overdue,
+    );
+}
+
+
+// AJAX handlers for installments
+add_action('wp_ajax_generate_installments', 'somity_ajax_generate_installments');
+function somity_ajax_generate_installments() {
+    check_ajax_referer('somity-nonce', 'nonce');
+    
+    if (!current_user_can('administrator')) {
+        wp_send_json_error(array('message' => __('You do not have permission to generate installments.', 'somity-manager')));
+    }
+    
+    $generate_for_all = isset($_POST['generate_for_all']) ? intval($_POST['generate_for_all']) : 0;
+    $member_id = isset($_POST['member_id']) ? intval($_POST['member_id']) : 0;
+    $amount = isset($_POST['amount']) ? floatval($_POST['amount']) : 0;
+    $year = isset($_POST['year']) ? intval($_POST['year']) : date('Y');
+    
+    if ($amount <= 0) {
+        wp_send_json_error(array('message' => __('Invalid amount.', 'somity-manager')));
+    }
+    
+    if ($generate_for_all) {
+        // Get all approved members
+        $members = get_users(array(
+            'role' => 'subscriber',
+            'meta_key' => '_member_status',
+            'meta_value' => 'approved'
+        ));
+        
+        $total_installments = 0;
+        
+        foreach ($members as $member) {
+            $installments = somity_generate_yearly_installments($member->ID, $amount, $year);
+            $total_installments += count($installments);
+        }
+        
+        wp_send_json_success(array('message' => sprintf(__('Successfully generated %d installments for %d members.', 'somity-manager'), $total_installments, count($members))));
+    } else {
+        if (!$member_id) {
+            wp_send_json_error(array('message' => __('Please select a member.', 'somity-manager')));
+        }
+        
+        $installments = somity_generate_yearly_installments($member_id, $amount, $year);
+        
+        if (count($installments) > 0) {
+            wp_send_json_success(array('message' => sprintf(__('Successfully generated %d installments.', 'somity-manager'), count($installments))));
+        } else {
+            wp_send_json_error(array('message' => __('No installments were generated. They may already exist.', 'somity-manager')));
+        }
+    }
+}
+
+add_action('wp_ajax_mark_installment_paid', 'somity_ajax_mark_installment_paid');
+function somity_ajax_mark_installment_paid() {
+    check_ajax_referer('somity-nonce', 'nonce');
+    
+    if (!current_user_can('administrator')) {
+        wp_send_json_error(array('message' => __('You do not have permission to mark installments as paid.', 'somity-manager')));
+    }
+    
+    $installment_id = isset($_POST['installment_id']) ? intval($_POST['installment_id']) : 0;
+    
+    if (!$installment_id) {
+        wp_send_json_error(array('message' => __('Invalid installment ID.', 'somity-manager')));
+    }
+    
+    $installment = get_post($installment_id);
+    
+    if (!$installment || $installment->post_type !== 'installment') {
+        wp_send_json_error(array('message' => __('Invalid installment.', 'somity-manager')));
+    }
+    
+    // Update installment status
+    wp_set_post_terms($installment_id, 'paid', 'installment_status');
+    
+    // Get installment details
+    $amount = get_post_meta($installment_id, '_amount', true);
+    $member_id = get_post_meta($installment_id, '_member_id', true);
+    $member = get_user_by('id', $member_id);
+    
+    // Create activity record
+    $activity_data = array(
+        'post_title' => 'Installment Paid',
+        'post_content' => 'Installment of ' . $amount . ' by ' . $member->display_name . ' was marked as paid',
+        'post_status' => 'publish',
+        'post_author' => get_current_user_id(),
+        'post_type' => 'activity',
+    );
+    
+    $activity_id = wp_insert_post($activity_data);
+    
+    if (!is_wp_error($activity_id)) {
+        wp_set_post_terms($activity_id, 'installment', 'activity_type');
+    }
+    
+    wp_send_json_success(array('message' => __('Installment has been marked as paid successfully.', 'somity-manager')));
+}
+
+add_action('wp_ajax_export_installments', 'somity_ajax_export_installments');
+function somity_ajax_export_installments() {
+    check_ajax_referer('somity-nonce', 'nonce');
+    
+    if (!current_user_can('administrator')) {
+        wp_die(__('You do not have permission to export installments.', 'somity-manager'));
+    }
+    
+    $filterValue = isset($_GET['status']) ? sanitize_text_field($_GET['status']) : 'all';
+    $searchTerm = isset($_GET['search']) ? sanitize_text_field($_GET['search']) : '';
+    $monthFilter = isset($_GET['month']) ? sanitize_text_field($_GET['month']) : 'all';
+    
+    header('Content-Type: text/csv');
+    header('Content-Disposition: attachment; filename="installments_export.csv"');
+    
+    $output = fopen('php://output', 'w');
+    
+    // Add CSV headers
+    fputcsv($output, array(
+        'ID',
+        'Member',
+        'Amount',
+        'Due Date',
+        'Status',
+    ));
+    
+    // Build query arguments
+    $args = array(
+        'post_type' => 'installment',
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+        'orderby' => 'date',
+        'order' => 'DESC',
+    );
+    
+    // Handle search filter
+    if (!empty($searchTerm)) {
+        $args['s'] = $searchTerm;
+    }
+    
+    // Handle status filter
+    if ($filterValue !== 'all') {
+        $args['tax_query'] = array(
+            array(
+                'taxonomy' => 'installment_status',
+                'field' => 'slug',
+                'terms' => $filterValue,
+            ),
+        );
+    }
+    
+    // Handle month filter
+    if ($monthFilter !== 'all') {
+        $month = intval($monthFilter);
+        $year = date('Y');
+        
+        $args['meta_query'] = array(
+            array(
+                'key' => '_due_date',
+                'value' => $year . '-' . str_pad($month, 2, '0', STR_PAD_LEFT) . '%',
+                'compare' => 'LIKE',
+            ),
+        );
+    }
+    
+    $installments_query = new WP_Query($args);
+    
+    // Add installment data
+    if ($installments_query->have_posts()) {
+        while ($installments_query->have_posts()) {
+            $installments_query->the_post();
+            $installment_id = get_the_ID();
+            $member_id = get_post_meta($installment_id, '_member_id', true);
+            $member = get_user_by('id', $member_id);
+            $status_terms = wp_get_post_terms($installment_id, 'installment_status');
+            $status = !empty($status_terms) ? $status_terms[0]->name : 'Unknown';
+            
+            fputcsv($output, array(
+                $installment_id,
+                $member->display_name,
+                get_post_meta($installment_id, '_amount', true),
+                get_post_meta($installment_id, '_due_date', true),
+                $status,
+            ));
+        }
+    }
+    
+    wp_reset_postdata();
+    
+    fclose($output);
+    exit;
 }

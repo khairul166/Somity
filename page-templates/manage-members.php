@@ -98,20 +98,28 @@ get_header();
                 </div>
                 
                 <!-- Search and Filter -->
-                <div class="search-filter">
+                <div class="search-filter mb-4">
                     <div class="row g-3">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-search"></i></span>
                                 <input type="text" id="member-search" class="form-control" placeholder="<?php _e('Search by name or email...', 'somity-manager'); ?>" value="<?php echo isset($_GET['search']) ? esc_attr($_GET['search']) : ''; ?>">
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <select id="member-filter" class="form-select">
                                 <option value="all" <?php selected(isset($_GET['status']) ? $_GET['status'] : 'all', 'all'); ?>><?php _e('All Statuses', 'somity-manager'); ?></option>
                                 <option value="pending" <?php selected(isset($_GET['status']) ? $_GET['status'] : 'all', 'pending'); ?>><?php _e('Pending', 'somity-manager'); ?></option>
                                 <option value="approved" <?php selected(isset($_GET['status']) ? $_GET['status'] : 'all', 'approved'); ?>><?php _e('Approved', 'somity-manager'); ?></option>
                                 <option value="rejected" <?php selected(isset($_GET['status']) ? $_GET['status'] : 'all', 'rejected'); ?>><?php _e('Rejected', 'somity-manager'); ?></option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select id="per-page" class="form-select">
+                                <option value="10" <?php selected(isset($_GET['per_page']) ? $_GET['per_page'] : '10', '10'); ?>>10 <?php _e('per page', 'somity-manager'); ?></option>
+                                <option value="20" <?php selected(isset($_GET['per_page']) ? $_GET['per_page'] : '10', '20'); ?>>20 <?php _e('per page', 'somity-manager'); ?></option>
+                                <option value="50" <?php selected(isset($_GET['per_page']) ? $_GET['per_page'] : '10', '50'); ?>>50 <?php _e('per page', 'somity-manager'); ?></option>
+                                <option value="100" <?php selected(isset($_GET['per_page']) ? $_GET['per_page'] : '10', '100'); ?>>100 <?php _e('per page', 'somity-manager'); ?></option>
                             </select>
                         </div>
                         <div class="col-md-2">
@@ -144,15 +152,24 @@ get_header();
                                 </thead>
                                 <tbody>
                                     <?php
-                                    // Get current page number
-                                    $paged = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
+                                    // Get current page number from query string or URL
+                                    if (get_query_var('paged')) {
+                                        $paged = get_query_var('paged');
+                                    } elseif (isset($_GET['paged'])) {
+                                        $paged = intval($_GET['paged']);
+                                    } else {
+                                        $paged = 1;
+                                    }
+                                    
+                                    // Get per page value
+                                    $per_page = isset($_GET['per_page']) ? intval($_GET['per_page']) : 1;
                                     
                                     // Get filter values
                                     $status = isset($_GET['status']) ? sanitize_text_field($_GET['status']) : 'all';
                                     $search = isset($_GET['search']) ? sanitize_text_field($_GET['search']) : '';
                                     
                                     // Get paginated members
-                                    $members_data = somity_get_members_paginated(10, $paged, $status, $search);
+                                    $members_data = somity_get_members_paginated($per_page, $paged, $status, $search);
                                     
                                     if ($members_data['items']) {
                                         foreach ($members_data['items'] as $member) {
@@ -218,8 +235,8 @@ get_header();
                     <div class="card-footer d-flex justify-content-between align-items-center">
                         <div>
                             <?php 
-                            $start_record = ($members_data['current_page'] - 1) * 10 + 1;
-                            $end_record = min($start_record + 9, $members_data['total']);
+                            $start_record = ($members_data['current_page'] - 1) * $per_page + 1;
+                            $end_record = min($start_record + $per_page - 1, $members_data['total']);
                             echo sprintf(
                                 __('Showing %d-%d of %d records', 'somity-manager'),
                                 $start_record,
@@ -235,7 +252,7 @@ get_header();
                                 $query_params = array(
                                     'status' => $status,
                                     'search' => $search,
-                                    'per_page' => 1,
+                                    'per_page' => $per_page
                                 );
                                 
                                 // Remove empty parameters
@@ -248,7 +265,12 @@ get_header();
                                 // Previous page
                                 if ($members_data['current_page'] > 1) {
                                     $prev_page = $members_data['current_page'] - 1;
-                                    $prev_link = add_query_arg(array_merge($query_params, array('paged' => $prev_page)));
+                                    if (get_option('permalink_structure')) {
+                                        $prev_link = trailingslashit(get_pagenum_link($prev_page));
+                                        $prev_link = add_query_arg($query_params, $prev_link);
+                                    } else {
+                                        $prev_link = add_query_arg(array_merge($query_params, array('paged' => $prev_page)), get_permalink());
+                                    }
                                     echo '<li class="page-item"><a class="page-link" href="' . esc_url($prev_link) . '">' . __('Previous', 'somity-manager') . '</a></li>';
                                 } else {
                                     echo '<li class="page-item disabled"><a class="page-link" href="#" tabindex="-1">' . __('Previous', 'somity-manager') . '</a></li>';
@@ -260,7 +282,12 @@ get_header();
                                 
                                 // First page
                                 if ($start_page > 1) {
-                                    $first_link = add_query_arg(array_merge($query_params, array('paged' => 1)));
+                                    if (get_option('permalink_structure')) {
+                                        $first_link = trailingslashit(get_pagenum_link(1));
+                                        $first_link = add_query_arg($query_params, $first_link);
+                                    } else {
+                                        $first_link = add_query_arg(array_merge($query_params, array('paged' => 1)), get_permalink());
+                                    }
                                     echo '<li class="page-item"><a class="page-link" href="' . esc_url($first_link) . '">1</a></li>';
                                     if ($start_page > 2) {
                                         echo '<li class="page-item disabled"><a class="page-link" href="#">...</a></li>';
@@ -272,7 +299,12 @@ get_header();
                                     if ($i == $members_data['current_page']) {
                                         echo '<li class="page-item active"><a class="page-link" href="#">' . $i . '</a></li>';
                                     } else {
-                                        $page_link = add_query_arg(array_merge($query_params, array('paged' => $i)));
+                                        if (get_option('permalink_structure')) {
+                                            $page_link = trailingslashit(get_pagenum_link($i));
+                                            $page_link = add_query_arg($query_params, $page_link);
+                                        } else {
+                                            $page_link = add_query_arg(array_merge($query_params, array('paged' => $i)), get_permalink());
+                                        }
                                         echo '<li class="page-item"><a class="page-link" href="' . esc_url($page_link) . '">' . $i . '</a></li>';
                                     }
                                 }
@@ -282,14 +314,24 @@ get_header();
                                     if ($end_page < $members_data['pages'] - 1) {
                                         echo '<li class="page-item disabled"><a class="page-link" href="#">...</a></li>';
                                     }
-                                    $last_link = add_query_arg(array_merge($query_params, array('paged' => $members_data['pages'])));
+                                    if (get_option('permalink_structure')) {
+                                        $last_link = trailingslashit(get_pagenum_link($members_data['pages']));
+                                        $last_link = add_query_arg($query_params, $last_link);
+                                    } else {
+                                        $last_link = add_query_arg(array_merge($query_params, array('paged' => $members_data['pages'])), get_permalink());
+                                    }
                                     echo '<li class="page-item"><a class="page-link" href="' . esc_url($last_link) . '">' . $members_data['pages'] . '</a></li>';
                                 }
                                 
                                 // Next page
                                 if ($members_data['current_page'] < $members_data['pages']) {
                                     $next_page = $members_data['current_page'] + 1;
-                                    $next_link = add_query_arg(array_merge($query_params, array('paged' => $next_page)));
+                                    if (get_option('permalink_structure')) {
+                                        $next_link = trailingslashit(get_pagenum_link($next_page));
+                                        $next_link = add_query_arg($query_params, $next_link);
+                                    } else {
+                                        $next_link = add_query_arg(array_merge($query_params, array('paged' => $next_page)), get_permalink());
+                                    }
                                     echo '<li class="page-item"><a class="page-link" href="' . esc_url($next_link) . '">' . __('Next', 'somity-manager') . '</a></li>';
                                 } else {
                                     echo '<li class="page-item disabled"><a class="page-link" href="#" tabindex="-1">' . __('Next', 'somity-manager') . '</a></li>';
@@ -330,110 +372,3 @@ get_header();
 </div>
 
 <?php get_footer(); ?>
-
-<!-- <script>
-(function($) {
-    'use strict';
-    
-    $(document).ready(function() {
-        // Approve member
-        $('.approve-member').on('click', function() {
-            var memberId = $(this).data('id');
-            var $btn = $(this);
-            
-            if (confirm('<?php _e('Are you sure you want to approve this member?', 'somity-manager'); ?>')) {
-                $.ajax({
-                    type: 'POST',
-                    url: somityAjax.ajaxurl,
-                    data: {
-                        action: 'approve_member',
-                        member_id: memberId,
-                        nonce: somityAjax.nonce
-                    },
-                    beforeSend: function() {
-                        $btn.prop('disabled', true);
-                    },
-                    success: function(response) {
-                        if (response.success) {
-                            location.reload();
-                        } else {
-                            alert('<?php _e('Error: ', 'somity-manager'); ?>' + response.data.message);
-                            $btn.prop('disabled', false);
-                        }
-                    },
-                    error: function() {
-                        alert('<?php _e('An error occurred. Please try again.', 'somity-manager'); ?>');
-                        $btn.prop('disabled', false);
-                    }
-                });
-            }
-        });
-        
-        // Reject member
-        $('.reject-member').on('click', function() {
-            var memberId = $(this).data('id');
-            $('#rejection-member-id').val(memberId);
-            $('#rejectionModal').modal('show');
-        });
-        
-        // Confirm rejection
-        $('#confirm-rejection').on('click', function() {
-            var memberId = $('#rejection-member-id').val();
-            var reason = $('#rejection-reason').val();
-            
-            if (!reason) {
-                alert('<?php _e('Please provide a reason for rejection.', 'somity-manager'); ?>');
-                return;
-            }
-            
-            $.ajax({
-                type: 'POST',
-                url: somityAjax.ajaxurl,
-                data: {
-                    action: 'reject_member',
-                    member_id: memberId,
-                    reason: reason,
-                    nonce: somityAjax.nonce
-                },
-                beforeSend: function() {
-                    $('#confirm-rejection').prop('disabled', true);
-                },
-                success: function(response) {
-                    if (response.success) {
-                        $('#rejectionModal').modal('hide');
-                        location.reload();
-                    } else {
-                        alert('<?php _e('Error: ', 'somity-manager'); ?>' + response.data.message);
-                        $('#confirm-rejection').prop('disabled', false);
-                    }
-                },
-                error: function() {
-                    alert('<?php _e('An error occurred. Please try again.', 'somity-manager'); ?>');
-                    $('#confirm-rejection').prop('disabled', false);
-                }
-            });
-        });
-        
-        // Filter functionality
-        $('#filter-btn').on('click', function() {
-            var status = $('#member-filter').val();
-            var search = $('#member-search').val();
-            
-            var url = new URL(window.location.href);
-            url.searchParams.set('status', status);
-            url.searchParams.set('search', search);
-            url.searchParams.set('paged', '1');
-            
-            window.location.href = url.toString();
-        });
-        
-        // Export members
-        $('#export-members').on('click', function() {
-            var status = $('#member-filter').val();
-            var search = $('#member-search').val();
-            
-            window.location.href = somityAjax.ajaxurl + '?action=export_members&status=' + status + '&search=' + search + '&nonce=' + somityAjax.nonce;
-        });
-    });
-})(jQuery);
-</script> -->
