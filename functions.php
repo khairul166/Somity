@@ -27,21 +27,16 @@ function somity_theme_setup() {
 }
 add_action('after_setup_theme', 'somity_theme_setup');
 
-// Enqueue scripts and styles
-function somity_enqueue_scripts() {
-    // Enqueue styles
-    wp_enqueue_style('somity-google-fonts', 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap', array(), null);
-    wp_enqueue_style('somity-main-style', SOMITY_URL . '/assets/css/main.css', array(), SOMITY_VERSION);
-    wp_enqueue_style('somity-dashboard-style', SOMITY_URL . '/assets/css/dashboard.css', array(), SOMITY_VERSION);
+// // Enqueue scripts and styles
+// function somity_enqueue_scripts() {
+//     // Enqueue styles
+//     wp_enqueue_style('somity-google-fonts', 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap', array(), null);
+ 
+//     // Enqueue scripts
+//     wp_enqueue_script('jquery');
+//     wp_enqueue_script('somity-main-script', SOMITY_URL . '/assets/js/main.js', array('jquery'), SOMITY_VERSION, true);
+//     wp_enqueue_script('somity-dashboard-script', SOMITY_URL . '/assets/js/dashboard.js', array('jquery'), SOMITY_VERSION, true);
     
-    // Enqueue scripts
-    wp_enqueue_script('jquery');
-    wp_enqueue_script('somity-main-script', SOMITY_URL . '/assets/js/main.js', array('jquery'), SOMITY_VERSION, true);
-    wp_enqueue_script('somity-dashboard-script', SOMITY_URL . '/assets/js/dashboard.js', array('jquery'), SOMITY_VERSION, true);
-    
-<<<<<<< HEAD
-// Localize script - THIS IS IMPORTANT
-=======
 // // Localize script - THIS IS IMPORTANT
 //     wp_localize_script('somity-dashboard-script', 'somityAjax', array(
 //         'ajaxurl' => admin_url('admin-ajax.php'),
@@ -56,42 +51,41 @@ function somity_enqueue_scripts() {
 //             'cancelConfirm' => __('Are you sure you want to cancel? Any unsaved changes will be lost.', 'somity-manager'),
 //         )
 //     ));
-}
-add_action('wp_enqueue_scripts', 'somity_enqueue_scripts');
+// }
+// add_action('wp_enqueue_scripts', 'somity_enqueue_scripts');
 
-// Localize script
-function somity_localize_scripts() {
->>>>>>> e57d1f1 (11.10.25 5.15PM)
-    wp_localize_script('somity-dashboard-script', 'somityAjax', array(
+// Enqueue scripts and styles
+function somity_enqueue_scripts() {
+    // Enqueue styles
+    wp_enqueue_style('bootstrap', 'https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css', array(), '5.1.3');
+    wp_enqueue_style('bootstrap-icons', 'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css', array(), '1.8.1');
+    wp_enqueue_style('somity-style', get_stylesheet_uri(), array(), SOMITY_VERSION);
+    wp_enqueue_style('somity-main-style', SOMITY_URL . '/assets/css/main.css', array(), SOMITY_VERSION);
+    wp_enqueue_style('somity-dashboard-style', SOMITY_URL . '/assets/css/dashboard.css', array(), SOMITY_VERSION);
+    
+    
+    // Enqueue scripts
+    wp_enqueue_script('jquery');
+    wp_enqueue_script('bootstrap', 'https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js', array('jquery'), '5.1.3', true);
+    wp_enqueue_script('somity-main', get_template_directory_uri() . '/assets/js/main.js', array('jquery'), SOMITY_VERSION, true);
+    wp_enqueue_script('somity-dashboard', get_template_directory_uri() . '/assets/js/dashboard.js', array('jquery', 'bootstrap'), SOMITY_VERSION, true);
+    
+    // Localize script
+    wp_localize_script('somity-dashboard', 'somityAjax', array(
         'ajaxurl' => admin_url('admin-ajax.php'),
         'nonce' => wp_create_nonce('somity-nonce'),
         'memberDashboardUrl' => home_url('/member-dashboard/'),
-<<<<<<< HEAD
-        'texts' => array(
-            'approveConfirm' => __('Are you sure you want to approve this payment?', 'somity-manager'),
-=======
         'adminDashboardUrl' => home_url('/admin-dashboard/'),
         'texts' => array(
             'approveConfirm' => __('Are you sure you want to approve this member?', 'somity-manager'),
->>>>>>> e57d1f1 (11.10.25 5.15PM)
             'rejectReason' => __('Please enter a reason for rejection:', 'somity-manager'),
             'errorPrefix' => __('Error:', 'somity-manager'),
             'errorMessage' => __('An error occurred. Please try again.', 'somity-manager'),
             'logoutConfirm' => __('Are you sure you want to logout?', 'somity-manager'),
-<<<<<<< HEAD
-            'cancelConfirm' => __('Are you sure you want to cancel? Any unsaved changes will be lost.', 'somity-manager'),
         )
     ));
 }
 add_action('wp_enqueue_scripts', 'somity_enqueue_scripts');
-=======
-        )
-    ));
-}
-add_action('wp_enqueue_scripts', 'somity_localize_scripts');
-
-
->>>>>>> e57d1f1 (11.10.25 5.15PM)
 // Register sidebars
 function somity_widgets_init() {
     register_sidebar(array(

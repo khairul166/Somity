@@ -374,6 +374,98 @@
                 }, 500);
             }
         });
+
+                // Approve member
+        $('.approve-member').on('click', function() {
+            var memberId = $(this).data('id');
+            var $btn = $(this);
+            
+            if (confirm(somity.texts.approveConfirm)) {
+                $.ajax({
+                    type: 'POST',
+                    url: somity.ajaxurl,
+                    data: {
+                        action: 'approve_member',
+                        member_id: memberId,
+                        nonce: somity.nonce
+                    },
+                    beforeSend: function() {
+                        $btn.prop('disabled', true);
+                        $btn.html('<i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>');
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            // Show success message
+                            alert(response.data.message);
+                            // Reload the page
+                            location.reload();
+                        } else {
+                            // Show error message
+                            alert(response.data.message);
+                            $btn.prop('disabled', false);
+                            $btn.html('<i class="bi bi-check-lg"></i>');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        // Show error message
+                        alert(somity.texts.errorMessage);
+                        console.log(xhr.responseText);
+                        $btn.prop('disabled', false);
+                        $btn.html('<i class="bi bi-check-lg"></i>');
+                    }
+                });
+            }
+        });
+
+        // Reject member
+        $('.reject-member').on('click', function() {
+            var memberId = $(this).data('id');
+            $('#rejection-member-id').val(memberId);
+            $('#rejectionModal').modal('show');
+        });
+
+        // Confirm rejection
+        $('#confirm-rejection').on('click', function() {
+            var memberId = $('#rejection-member-id').val();
+            var reason = $('#rejection-reason').val();
+            
+            if (!reason) {
+                alert(somity.texts.rejectReason);
+                return;
+            }
+            
+            $.ajax({
+                type: 'POST',
+                url: somity.ajaxurl,
+                data: {
+                    action: 'reject_member',
+                    member_id: memberId,
+                    reason: reason,
+                    nonce: somity.nonce
+                },
+                beforeSend: function() {
+                    $('#confirm-rejection').prop('disabled', true);
+                    $('#confirm-rejection').html('<i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i> <?php _e('Processing...', 'somity-manager'); ?>');
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $('#rejectionModal').modal('hide');
+                        alert(response.data.message);
+                        location.reload();
+                    } else {
+                        alert(response.data.message);
+                        $('#confirm-rejection').prop('disabled', false);
+                        $('#confirm-rejection').html('<?php _e('Reject Member', 'somity-manager'); ?>');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    alert(somity.texts.errorMessage);
+                    console.log(xhr.responseText);
+                    $('#confirm-rejection').prop('disabled', false);
+                    $('#confirm-rejection').html('<?php _e('Reject Member', 'somity-manager'); ?>');
+                }
+            });
+        });
     });
 
 })(jQuery);

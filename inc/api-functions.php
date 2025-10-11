@@ -990,7 +990,14 @@ function somity_get_member_details($member_id) {
 function somity_approve_member($member_id) {
     $member = get_user_by('id', $member_id);
     
-    if (!$member || !in_array('member', $member->roles)) {
+    if (!$member) {
+        error_log('Member approval failed: User not found for ID ' . $member_id);
+        return false;
+    }
+    
+    // Check if user has the member role
+    if (!in_array('member', $member->roles)) {
+        error_log('Member approval failed: User does not have member role for ID ' . $member_id);
         return false;
     }
     
@@ -1011,6 +1018,23 @@ function somity_approve_member($member_id) {
     if (!is_wp_error($activity_id)) {
         wp_set_post_terms($activity_id, 'member', 'activity_type');
     }
+    
+    // Send notification email to member
+    $subject = __('Your Account Has Been Approved', 'somity-manager');
+    $message = sprintf(
+        __('Hello %s,%sYour account on %s has been approved by the administrator.%sYou can now log in and participate in our savings program.%s%sThank you,%sThe %s Team', 'somity-manager'),
+        $member->display_name,
+        "\n\n",
+        get_bloginfo('name'),
+        "\n\n",
+        "\n",
+        home_url('/login/'),
+        "\n\n",
+        "\n",
+        get_bloginfo('name')
+    );
+    
+    wp_mail($member->user_email, $subject, $message);
     
     return true;
 }
@@ -1050,15 +1074,27 @@ function somity_reject_member($member_id, $reason = '') {
 // AJAX handlers for member management
 add_action('wp_ajax_approve_member', 'somity_ajax_approve_member');
 function somity_ajax_approve_member() {
-    check_ajax_referer('somity-nonce', 'nonce');
+    // Check nonce
+    if (!check_ajax_referer('somity-nonce', 'nonce', false)) {
+        wp_send_json_error(array('message' => __('Security check failed.', 'somity-manager')));
+    }
     
+    // Check user capabilities
     if (!current_user_can('administrator')) {
         wp_send_json_error(array('message' => __('You do not have permission to approve members.', 'somity-manager')));
     }
     
-    $member_id = intval($_POST['member_id']);
+    // Get and validate member ID
+    $member_id = isset($_POST['member_id']) ? intval($_POST['member_id']) : 0;
     
-    if (somity_approve_member($member_id)) {
+    if (!$member_id) {
+        wp_send_json_error(array('message' => __('Invalid member ID.', 'somity-manager')));
+    }
+    
+    // Approve the member
+    $result = somity_approve_member($member_id);
+    
+    if ($result) {
         wp_send_json_success(array('message' => __('Member has been approved successfully.', 'somity-manager')));
     } else {
         wp_send_json_error(array('message' => __('Error approving member.', 'somity-manager')));
@@ -1067,16 +1103,32 @@ function somity_ajax_approve_member() {
 
 add_action('wp_ajax_reject_member', 'somity_ajax_reject_member');
 function somity_ajax_reject_member() {
-    check_ajax_referer('somity-nonce', 'nonce');
+    // Check nonce
+    if (!check_ajax_referer('somity-nonce', 'nonce', false)) {
+        wp_send_json_error(array('message' => __('Security check failed.', 'somity-manager')));
+    }
     
+    // Check user capabilities
     if (!current_user_can('administrator')) {
         wp_send_json_error(array('message' => __('You do not have permission to reject members.', 'somity-manager')));
     }
     
-    $member_id = intval($_POST['member_id']);
-    $reason = sanitize_textarea_field($_POST['reason']);
+    // Get and validate member ID
+    $member_id = isset($_POST['member_id']) ? intval($_POST['member_id']) : 0;
+    $reason = isset($_POST['reason']) ? sanitize_textarea_field($_POST['reason']) : '';
     
-    if (somity_reject_member($member_id, $reason)) {
+    if (!$member_id) {
+        wp_send_json_error(array('message' => __('Invalid member ID.', 'somity-manager')));
+    }
+    
+    if (empty($reason)) {
+        wp_send_json_error(array('message' => __('Please provide a reason for rejection.', 'somity-manager')));
+    }
+    
+    // Reject the member
+    $result = somity_reject_member($member_id, $reason);
+    
+    if ($result) {
         wp_send_json_success(array('message' => __('Member has been rejected successfully.', 'somity-manager')));
     } else {
         wp_send_json_error(array('message' => __('Error rejecting member.', 'somity-manager')));
