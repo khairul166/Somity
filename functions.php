@@ -39,22 +39,59 @@ function somity_enqueue_scripts() {
     wp_enqueue_script('somity-main-script', SOMITY_URL . '/assets/js/main.js', array('jquery'), SOMITY_VERSION, true);
     wp_enqueue_script('somity-dashboard-script', SOMITY_URL . '/assets/js/dashboard.js', array('jquery'), SOMITY_VERSION, true);
     
+<<<<<<< HEAD
 // Localize script - THIS IS IMPORTANT
+=======
+// // Localize script - THIS IS IMPORTANT
+//     wp_localize_script('somity-dashboard-script', 'somityAjax', array(
+//         'ajaxurl' => admin_url('admin-ajax.php'),
+//         'nonce' => wp_create_nonce('somity-nonce'),
+//         'memberDashboardUrl' => home_url('/member-dashboard/'),
+//         'texts' => array(
+//             'approveConfirm' => __('Are you sure you want to approve this payment?', 'somity-manager'),
+//             'rejectReason' => __('Please enter a reason for rejection:', 'somity-manager'),
+//             'errorPrefix' => __('Error:', 'somity-manager'),
+//             'errorMessage' => __('An error occurred. Please try again.', 'somity-manager'),
+//             'logoutConfirm' => __('Are you sure you want to logout?', 'somity-manager'),
+//             'cancelConfirm' => __('Are you sure you want to cancel? Any unsaved changes will be lost.', 'somity-manager'),
+//         )
+//     ));
+}
+add_action('wp_enqueue_scripts', 'somity_enqueue_scripts');
+
+// Localize script
+function somity_localize_scripts() {
+>>>>>>> e57d1f1 (11.10.25 5.15PM)
     wp_localize_script('somity-dashboard-script', 'somityAjax', array(
         'ajaxurl' => admin_url('admin-ajax.php'),
         'nonce' => wp_create_nonce('somity-nonce'),
         'memberDashboardUrl' => home_url('/member-dashboard/'),
+<<<<<<< HEAD
         'texts' => array(
             'approveConfirm' => __('Are you sure you want to approve this payment?', 'somity-manager'),
+=======
+        'adminDashboardUrl' => home_url('/admin-dashboard/'),
+        'texts' => array(
+            'approveConfirm' => __('Are you sure you want to approve this member?', 'somity-manager'),
+>>>>>>> e57d1f1 (11.10.25 5.15PM)
             'rejectReason' => __('Please enter a reason for rejection:', 'somity-manager'),
             'errorPrefix' => __('Error:', 'somity-manager'),
             'errorMessage' => __('An error occurred. Please try again.', 'somity-manager'),
             'logoutConfirm' => __('Are you sure you want to logout?', 'somity-manager'),
+<<<<<<< HEAD
             'cancelConfirm' => __('Are you sure you want to cancel? Any unsaved changes will be lost.', 'somity-manager'),
         )
     ));
 }
 add_action('wp_enqueue_scripts', 'somity_enqueue_scripts');
+=======
+        )
+    ));
+}
+add_action('wp_enqueue_scripts', 'somity_localize_scripts');
+
+
+>>>>>>> e57d1f1 (11.10.25 5.15PM)
 // Register sidebars
 function somity_widgets_init() {
     register_sidebar(array(
