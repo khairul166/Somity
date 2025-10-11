@@ -996,27 +996,34 @@ function somity_approve_member($member_id) {
     }
     
     // Check if user has the member role
-    if (!in_array('member', $member->roles)) {
+    if (!in_array('member', (array) $member->roles)) {
         error_log('Member approval failed: User does not have member role for ID ' . $member_id);
         return false;
     }
     
     // Update member status
-    update_user_meta($member_id, '_member_status', 'approved');
+    $result = update_user_meta($member_id, '_member_status', 'approved');
     
-    // Create activity record
-    $activity_data = array(
-        'post_title' => 'Member Approved',
-        'post_content' => 'Member ' . $member->display_name . ' was approved',
-        'post_status' => 'publish',
-        'post_author' => get_current_user_id(),
-        'post_type' => 'activity',
-    );
+    if (!$result) {
+        error_log('Member approval failed: Could not update user meta for ID ' . $member_id);
+        return false;
+    }
     
-    $activity_id = wp_insert_post($activity_data);
-    
-    if (!is_wp_error($activity_id)) {
-        wp_set_post_terms($activity_id, 'member', 'activity_type');
+    // Create activity record only if activity post type exists
+    if (post_type_exists('activity')) {
+        $activity_data = array(
+            'post_title' => 'Member Approved',
+            'post_content' => 'Member ' . $member->display_name . ' was approved',
+            'post_status' => 'publish',
+            'post_author' => get_current_user_id(),
+            'post_type' => 'activity',
+        );
+        
+        $activity_id = wp_insert_post($activity_data);
+        
+        if (!is_wp_error($activity_id) && taxonomy_exists('activity_type')) {
+            wp_set_post_terms($activity_id, 'member', 'activity_type');
+        }
     }
     
     // Send notification email to member
@@ -1045,28 +1052,63 @@ function somity_approve_member($member_id) {
 function somity_reject_member($member_id, $reason = '') {
     $member = get_user_by('id', $member_id);
     
-    if (!$member || !in_array('member', $member->roles)) {
+    if (!$member) {
+        error_log('Member rejection failed: User not found for ID ' . $member_id);
+        return false;
+    }
+    
+    // Check if user has the member role
+    if (!in_array('member', (array) $member->roles)) {
+        error_log('Member rejection failed: User does not have member role for ID ' . $member_id);
         return false;
     }
     
     // Update member status
-    update_user_meta($member_id, '_member_status', 'rejected');
+    $result = update_user_meta($member_id, '_member_status', 'rejected');
+    
+    if (!$result) {
+        error_log('Member rejection failed: Could not update user meta for ID ' . $member_id);
+        return false;
+    }
+    
+    // Save rejection reason
     update_user_meta($member_id, '_rejection_reason', $reason);
     
-    // Create activity record
-    $activity_data = array(
-        'post_title' => 'Member Rejected',
-        'post_content' => 'Member ' . $member->display_name . ' was rejected. Reason: ' . $reason,
-        'post_status' => 'publish',
-        'post_author' => get_current_user_id(),
-        'post_type' => 'activity',
+    // Create activity record only if activity post type exists
+    if (post_type_exists('activity')) {
+        $activity_data = array(
+            'post_title' => 'Member Rejected',
+            'post_content' => 'Member ' . $member->display_name . ' was rejected. Reason: ' . $reason,
+            'post_status' => 'publish',
+            'post_author' => get_current_user_id(),
+            'post_type' => 'activity',
+        );
+        
+        $activity_id = wp_insert_post($activity_data);
+        
+        if (!is_wp_error($activity_id) && taxonomy_exists('activity_type')) {
+            wp_set_post_terms($activity_id, 'member', 'activity_type');
+        }
+    }
+    
+    // Send notification email to member
+    $subject = __('Your Account Has Been Rejected', 'somity-manager');
+    $message = sprintf(
+        __('Hello %s,%sYour account on %s has been rejected by the administrator.%sReason: %s%sIf you believe this is a mistake, please contact the administrator.%s%sThank you,%sThe %s Team', 'somity-manager'),
+        $member->display_name,
+        "\n\n",
+        get_bloginfo('name'),
+        "\n\n",
+        $reason,
+        "\n\n",
+        "\n",
+        home_url('/contact/'),
+        "\n\n",
+        "\n",
+        get_bloginfo('name')
     );
     
-    $activity_id = wp_insert_post($activity_data);
-    
-    if (!is_wp_error($activity_id)) {
-        wp_set_post_terms($activity_id, 'member', 'activity_type');
-    }
+    wp_mail($member->user_email, $subject, $message);
     
     return true;
 }

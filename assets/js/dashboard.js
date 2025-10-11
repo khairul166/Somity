@@ -375,19 +375,19 @@
             }
         });
 
-                // Approve member
+        // Approve member
         $('.approve-member').on('click', function() {
             var memberId = $(this).data('id');
             var $btn = $(this);
             
-            if (confirm(somity.texts.approveConfirm)) {
+            if (confirm(somityAjax.texts.approveConfirm)) {
                 $.ajax({
                     type: 'POST',
-                    url: somity.ajaxurl,
+                    url: somityAjax.ajaxurl,
                     data: {
                         action: 'approve_member',
                         member_id: memberId,
-                        nonce: somity.nonce
+                        nonce: somityAjax.nonce
                     },
                     beforeSend: function() {
                         $btn.prop('disabled', true);
@@ -408,7 +408,7 @@
                     },
                     error: function(xhr, status, error) {
                         // Show error message
-                        alert(somity.texts.errorMessage);
+                        alert(somityAjax.texts.errorMessage);
                         console.log(xhr.responseText);
                         $btn.prop('disabled', false);
                         $btn.html('<i class="bi bi-check-lg"></i>');
@@ -430,18 +430,18 @@
             var reason = $('#rejection-reason').val();
             
             if (!reason) {
-                alert(somity.texts.rejectReason);
+                alert(somityAjax.texts.rejectReason);
                 return;
             }
             
             $.ajax({
                 type: 'POST',
-                url: somity.ajaxurl,
+                url: somityAjax.ajaxurl,
                 data: {
                     action: 'reject_member',
                     member_id: memberId,
                     reason: reason,
-                    nonce: somity.nonce
+                    nonce: somityAjax.nonce
                 },
                 beforeSend: function() {
                     $('#confirm-rejection').prop('disabled', true);
@@ -459,7 +459,7 @@
                     }
                 },
                 error: function(xhr, status, error) {
-                    alert(somity.texts.errorMessage);
+                    alert(somityAjax.texts.errorMessage);
                     console.log(xhr.responseText);
                     $('#confirm-rejection').prop('disabled', false);
                     $('#confirm-rejection').html('<?php _e('Reject Member', 'somity-manager'); ?>');

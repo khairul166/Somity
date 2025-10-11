@@ -27,32 +27,7 @@ function somity_theme_setup() {
 }
 add_action('after_setup_theme', 'somity_theme_setup');
 
-// // Enqueue scripts and styles
-// function somity_enqueue_scripts() {
-//     // Enqueue styles
-//     wp_enqueue_style('somity-google-fonts', 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap', array(), null);
- 
-//     // Enqueue scripts
-//     wp_enqueue_script('jquery');
-//     wp_enqueue_script('somity-main-script', SOMITY_URL . '/assets/js/main.js', array('jquery'), SOMITY_VERSION, true);
-//     wp_enqueue_script('somity-dashboard-script', SOMITY_URL . '/assets/js/dashboard.js', array('jquery'), SOMITY_VERSION, true);
-    
-// // Localize script - THIS IS IMPORTANT
-//     wp_localize_script('somity-dashboard-script', 'somityAjax', array(
-//         'ajaxurl' => admin_url('admin-ajax.php'),
-//         'nonce' => wp_create_nonce('somity-nonce'),
-//         'memberDashboardUrl' => home_url('/member-dashboard/'),
-//         'texts' => array(
-//             'approveConfirm' => __('Are you sure you want to approve this payment?', 'somity-manager'),
-//             'rejectReason' => __('Please enter a reason for rejection:', 'somity-manager'),
-//             'errorPrefix' => __('Error:', 'somity-manager'),
-//             'errorMessage' => __('An error occurred. Please try again.', 'somity-manager'),
-//             'logoutConfirm' => __('Are you sure you want to logout?', 'somity-manager'),
-//             'cancelConfirm' => __('Are you sure you want to cancel? Any unsaved changes will be lost.', 'somity-manager'),
-//         )
-//     ));
-// }
-// add_action('wp_enqueue_scripts', 'somity_enqueue_scripts');
+
 
 // Enqueue scripts and styles
 function somity_enqueue_scripts() {
@@ -62,7 +37,6 @@ function somity_enqueue_scripts() {
     wp_enqueue_style('somity-style', get_stylesheet_uri(), array(), SOMITY_VERSION);
     wp_enqueue_style('somity-main-style', SOMITY_URL . '/assets/css/main.css', array(), SOMITY_VERSION);
     wp_enqueue_style('somity-dashboard-style', SOMITY_URL . '/assets/css/dashboard.css', array(), SOMITY_VERSION);
-    
     
     // Enqueue scripts
     wp_enqueue_script('jquery');
@@ -86,6 +60,8 @@ function somity_enqueue_scripts() {
     ));
 }
 add_action('wp_enqueue_scripts', 'somity_enqueue_scripts');
+
+
 // Register sidebars
 function somity_widgets_init() {
     register_sidebar(array(
