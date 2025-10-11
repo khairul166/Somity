@@ -234,7 +234,8 @@ get_header();
                                 // Build query parameters array for pagination links
                                 $query_params = array(
                                     'status' => $status,
-                                    'search' => $search
+                                    'search' => $search,
+                                    'per_page' => 1,
                                 );
                                 
                                 // Remove empty parameters
@@ -330,7 +331,7 @@ get_header();
 
 <?php get_footer(); ?>
 
-<script>
+<!-- <script>
 (function($) {
     'use strict';
     
@@ -435,4 +436,4 @@ get_header();
         });
     });
 })(jQuery);
-</script>
+</script> -->

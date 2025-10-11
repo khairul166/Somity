@@ -988,45 +988,45 @@ function somity_get_member_details($member_id) {
  * Approve member
  */
 function somity_approve_member($member_id) {
+    error_log('Starting member approval for ID: ' . $member_id);
+    
     $member = get_user_by('id', $member_id);
     
     if (!$member) {
-        error_log('Member approval failed: User not found for ID ' . $member_id);
+        error_log('Member not found for ID: ' . $member_id);
         return false;
     }
-    
-    // Check if user has the member role
-    if (!in_array('member', (array) $member->roles)) {
-        error_log('Member approval failed: User does not have member role for ID ' . $member_id);
+    $member = new WP_User( $member_id );
+
+    // Remove all current roles (optional, if you want to replace the role)
+    $member->set_role( 'subscriber' ); // Replace 'subscriber' with the role you want
+        
+    error_log('Member found: ' . $member->display_name);
+    if ( ! $member instanceof WP_User ) {
+        error_log('Member is not a valid WP_User object');
         return false;
     }
-    
+
+    error_log('Member roles: ' . print_r($member->roles, true));
+
+    if ( ! in_array( 'subscriber', (array) $member->roles ) ) {
+        error_log('User does not have member role');
+        return false;
+    }
+
     // Update member status
+    error_log('Updating member status to approved');
     $result = update_user_meta($member_id, '_member_status', 'approved');
     
     if (!$result) {
-        error_log('Member approval failed: Could not update user meta for ID ' . $member_id);
+        error_log('Failed to update user meta');
         return false;
     }
     
-    // Create activity record only if activity post type exists
-    if (post_type_exists('activity')) {
-        $activity_data = array(
-            'post_title' => 'Member Approved',
-            'post_content' => 'Member ' . $member->display_name . ' was approved',
-            'post_status' => 'publish',
-            'post_author' => get_current_user_id(),
-            'post_type' => 'activity',
-        );
-        
-        $activity_id = wp_insert_post($activity_data);
-        
-        if (!is_wp_error($activity_id) && taxonomy_exists('activity_type')) {
-            wp_set_post_terms($activity_id, 'member', 'activity_type');
-        }
-    }
+    error_log('Member status updated successfully');
     
     // Send notification email to member
+    error_log('Sending notification email');
     $subject = __('Your Account Has Been Approved', 'somity-manager');
     $message = sprintf(
         __('Hello %s,%sYour account on %s has been approved by the administrator.%sYou can now log in and participate in our savings program.%s%sThank you,%sThe %s Team', 'somity-manager'),
@@ -1042,6 +1042,7 @@ function somity_approve_member($member_id) {
     );
     
     wp_mail($member->user_email, $subject, $message);
+    error_log('Notification email sent');
     
     return true;
 }
@@ -1113,16 +1114,17 @@ function somity_reject_member($member_id, $reason = '') {
     return true;
 }
 
-// AJAX handlers for member management
 add_action('wp_ajax_approve_member', 'somity_ajax_approve_member');
 function somity_ajax_approve_member() {
     // Check nonce
     if (!check_ajax_referer('somity-nonce', 'nonce', false)) {
+        error_log('Nonce check failed');
         wp_send_json_error(array('message' => __('Security check failed.', 'somity-manager')));
     }
     
     // Check user capabilities
     if (!current_user_can('administrator')) {
+        error_log('User does not have administrator capabilities');
         wp_send_json_error(array('message' => __('You do not have permission to approve members.', 'somity-manager')));
     }
     
@@ -1130,12 +1132,15 @@ function somity_ajax_approve_member() {
     $member_id = isset($_POST['member_id']) ? intval($_POST['member_id']) : 0;
     
     if (!$member_id) {
+        error_log('Invalid member ID: ' . $member_id);
         wp_send_json_error(array('message' => __('Invalid member ID.', 'somity-manager')));
     }
     
     // Approve the member
+    error_log('Attempting to approve member with ID: ' . $member_id);
     $result = somity_approve_member($member_id);
-    
+    error_log('Approval result: ' . ($result ? 'success' : 'failure'));
+    wp_send_json_success(array('message' => __('Member has been approved successfully.', 'somity-manager')));
     if ($result) {
         wp_send_json_success(array('message' => __('Member has been approved successfully.', 'somity-manager')));
     } else {

@@ -445,7 +445,7 @@
                 },
                 beforeSend: function() {
                     $('#confirm-rejection').prop('disabled', true);
-                    $('#confirm-rejection').html('<i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i> <?php _e('Processing...', 'somity-manager'); ?>');
+                    $('#confirm-rejection').html('<i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i> Processing...');
                 },
                 success: function(response) {
                     if (response.success) {
@@ -455,14 +455,14 @@
                     } else {
                         alert(response.data.message);
                         $('#confirm-rejection').prop('disabled', false);
-                        $('#confirm-rejection').html('<?php _e('Reject Member', 'somity-manager'); ?>');
+                        $('#confirm-rejection').html('Reject Member');
                     }
                 },
                 error: function(xhr, status, error) {
                     alert(somityAjax.texts.errorMessage);
                     console.log(xhr.responseText);
                     $('#confirm-rejection').prop('disabled', false);
-                    $('#confirm-rejection').html('<?php _e('Reject Member', 'somity-manager'); ?>');
+                    $('#confirm-rejection').html('Reject Member');
                 }
             });
         });
