@@ -2498,3 +2498,361 @@ function somity_generate_overdue_installments_report($start_date, $end_date) {
         'filename' => 'overdue_installments_' . $start_date . '_to_' . $end_date . '.csv'
     );
 }
+
+
+/**
+ * Get member's approved payments count
+ */
+function somity_get_member_approved_payments_count($member_id) {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'somity_payments';
+    
+    return $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM $table_name 
+         WHERE member_id = %d AND status = 'approved'",
+        $member_id
+    ));
+}
+
+/**
+ * Get member's pending payments count
+ */
+function somity_get_member_pending_payments_count($member_id) {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'somity_payments';
+    
+    return $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM $table_name 
+         WHERE member_id = %d AND status = 'pending'",
+        $member_id
+    ));
+}
+
+/**
+ * Get member's overdue installments count
+ */
+function somity_get_member_overdue_installments($member_id) {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'somity_installments';
+    
+    return $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM $table_name 
+         WHERE member_id = %d AND status = 'pending' AND due_date < CURDATE()",
+        $member_id
+    ));
+}
+
+/**
+ * Get member's payments with pagination and filters
+ */
+function somity_get_member_payments_paginated($member_id, $per_page = 10, $page = 1, $status = 'all', $search = '', $month = 'all') {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'somity_payments';
+    $offset = ($page - 1) * $per_page;
+    
+    // Build the base query
+    $query = "SELECT * FROM $table_name WHERE member_id = %d";
+    $count_query = "SELECT COUNT(*) FROM $table_name WHERE member_id = %d";
+    
+    // Initialize where conditions array
+    $where_conditions = array();
+    $prepare_values = array($member_id);
+    
+    // Handle status filter
+    if ($status !== 'all') {
+        $where_conditions[] = "status = %s";
+        $prepare_values[] = $status;
+    }
+    
+    // Handle search filter
+    if (!empty($search)) {
+        $where_conditions[] = "transaction_id LIKE %s";
+        $prepare_values[] = '%' . $wpdb->esc_like($search) . '%';
+    }
+    
+    // Handle month filter
+    if ($month !== 'all') {
+        $where_conditions[] = "MONTH(payment_date) = %d";
+        $prepare_values[] = intval($month);
+    }
+    
+    // Add where conditions to queries if any exist
+    if (!empty($where_conditions)) {
+        $where_clause = " AND " . implode(" AND ", $where_conditions);
+        $query .= $where_clause;
+        $count_query .= $where_clause;
+    }
+    
+    // Add order and pagination to the main query
+    $query .= " ORDER BY payment_date DESC";
+    $query .= " LIMIT %d OFFSET %d";
+    $prepare_values[] = $per_page;
+    $prepare_values[] = $offset;
+    
+    // Prepare and execute the queries
+    if (!empty($prepare_values)) {
+        $payments = $wpdb->get_results($wpdb->prepare($query, $prepare_values));
+        
+        // For count query, we only need the where conditions
+        $count_prepare_values = array_slice($prepare_values, 0, -2); // Remove limit and offset values
+        $total = $wpdb->get_var($wpdb->prepare($count_query, $count_prepare_values));
+    } else {
+        $payments = $wpdb->get_results($query);
+        $total = $wpdb->get_var($count_query);
+    }
+    
+    // Calculate pagination
+    $total_pages = $total > 0 ? ceil($total / $per_page) : 1;
+    
+    return array(
+        'items' => $payments,
+        'total' => $total,
+        'pages' => $total_pages,
+        'current_page' => $page
+    );
+}
+
+/**
+ * Get member's installments with pagination and filters
+ */
+function somity_get_member_installments_paginated($member_id, $per_page = 10, $page = 1, $status = 'all', $search = '', $year = 'all') {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'somity_installments';
+    $offset = ($page - 1) * $per_page;
+    
+    // Build the base query
+    $query = "SELECT * FROM $table_name WHERE member_id = %d";
+    $count_query = "SELECT COUNT(*) FROM $table_name WHERE member_id = %d";
+    
+    // Initialize where conditions array
+    $where_conditions = array();
+    $prepare_values = array($member_id);
+    
+    // Handle status filter
+    if ($status !== 'all') {
+        $where_conditions[] = "status = %s";
+        $prepare_values[] = $status;
+    }
+    
+    // Handle search filter
+    if (!empty($search)) {
+        $where_conditions[] = "MONTHNAME(due_date) LIKE %s";
+        $prepare_values[] = '%' . $wpdb->esc_like($search) . '%';
+    }
+    
+    // Handle year filter
+    if ($year !== 'all') {
+        $where_conditions[] = "YEAR(due_date) = %d";
+        $prepare_values[] = intval($year);
+    }
+    
+    // Add where conditions to queries if any exist
+    if (!empty($where_conditions)) {
+        $where_clause = " AND " . implode(" AND ", $where_conditions);
+        $query .= $where_clause;
+        $count_query .= $where_clause;
+    }
+    
+    // Add order and pagination to the main query
+    $query .= " ORDER BY due_date ASC";
+    $query .= " LIMIT %d OFFSET %d";
+    $prepare_values[] = $per_page;
+    $prepare_values[] = $offset;
+    
+    // Prepare and execute the queries
+    if (!empty($prepare_values)) {
+        $installments = $wpdb->get_results($wpdb->prepare($query, $prepare_values));
+        
+        // For count query, we only need the where conditions
+        $count_prepare_values = array_slice($prepare_values, 0, -2); // Remove limit and offset values
+        $total = $wpdb->get_var($wpdb->prepare($count_query, $count_prepare_values));
+    } else {
+        $installments = $wpdb->get_results($query);
+        $total = $wpdb->get_var($count_query);
+    }
+    
+    // Calculate pagination
+    $total_pages = $total > 0 ? ceil($total / $per_page) : 1;
+    
+    return array(
+        'items' => $installments,
+        'total' => $total,
+        'pages' => $total_pages,
+        'current_page' => $page
+    );
+}
+
+// AJAX handlers for member exports
+add_action('wp_ajax_export_member_payments', 'somity_ajax_export_member_payments');
+function somity_ajax_export_member_payments() {
+    check_ajax_referer('somity-nonce', 'nonce');
+    
+    if (!is_user_logged_in()) {
+        wp_die(__('You must be logged in to export payments.', 'somity-manager'));
+    }
+    
+    $member_id = get_current_user_id();
+    $status = isset($_GET['status']) ? sanitize_text_field($_GET['status']) : 'all';
+    $search = isset($_GET['search']) ? sanitize_text_field($_GET['search']) : '';
+    $month = isset($_GET['month']) ? sanitize_text_field($_GET['month']) : 'all';
+    
+    header('Content-Type: text/csv');
+    header('Content-Disposition: attachment; filename="payments_export.csv"');
+    
+    $output = fopen('php://output', 'w');
+    
+    // Add CSV headers
+    fputcsv($output, array(
+        'ID',
+        'Amount',
+        'Transaction ID',
+        'Payment Date',
+        'Payment Method',
+        'Status',
+    ));
+    
+    // Get all payments with filters
+    $payments_data = somity_get_member_payments_paginated($member_id, -1, 1, $status, $search, $month);
+    
+    // Add payment data
+    if ($payments_data['items']) {
+        foreach ($payments_data['items'] as $payment) {
+            fputcsv($output, array(
+                $payment->id,
+                $payment->amount,
+                $payment->transaction_id,
+                $payment->payment_date,
+                $payment->payment_method,
+                $payment->status,
+            ));
+        }
+    }
+    
+    fclose($output);
+    exit;
+}
+
+add_action('wp_ajax_export_member_installments', 'somity_ajax_export_member_installments');
+function somity_ajax_export_member_installments() {
+    check_ajax_referer('somity-nonce', 'nonce');
+    
+    if (!is_user_logged_in()) {
+        wp_die(__('You must be logged in to export installments.', 'somity-manager'));
+    }
+    
+    $member_id = get_current_user_id();
+    $status = isset($_GET['status']) ? sanitize_text_field($_GET['status']) : 'all';
+    $search = isset($_GET['search']) ? sanitize_text_field($_GET['search']) : '';
+    $year = isset($_GET['year']) ? sanitize_text_field($_GET['year']) : 'all';
+    
+    header('Content-Type: text/csv');
+    header('Content-Disposition: attachment; filename="installments_export.csv"');
+    
+    $output = fopen('php://output', 'w');
+    
+    // Add CSV headers
+    fputcsv($output, array(
+        'ID',
+        'Amount',
+        'Due Date',
+        'Status',
+    ));
+    
+    // Get all installments with filters
+    $installments_data = somity_get_member_installments_paginated($member_id, -1, 1, $status, $search, $year);
+    
+    // Add installment data
+    if ($installments_data['items']) {
+        foreach ($installments_data['items'] as $installment) {
+            fputcsv($output, array(
+                $installment->id,
+                $installment->amount,
+                $installment->due_date,
+                $installment->status,
+            ));
+        }
+    }
+    
+    fclose($output);
+    exit;
+}
+
+/**
+ * Get member's total installments
+ */
+function somity_get_member_total_installments($member_id) {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'somity_installments';
+    
+    return $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM $table_name WHERE member_id = %d",
+        $member_id
+    ));
+}
+
+
+/**
+ * Get member's paid installments count
+ */
+function somity_get_member_paid_installments($member_id) {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'somity_installments';
+    
+    return $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM $table_name WHERE member_id = %d AND status = 'paid'",
+        $member_id
+    ));
+}
+
+/**
+ * Get member's pending installments count
+ */
+function somity_get_member_pending_installments($member_id) {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'somity_installments';
+    
+    return $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM $table_name WHERE member_id = %d AND status = 'pending'",
+        $member_id
+    ));
+}
+
+// AJAX handler for changing member password
+add_action('wp_ajax_change_member_password', 'somity_ajax_change_member_password');
+function somity_ajax_change_member_password() {
+    check_ajax_referer('somity-nonce', 'nonce');
+    
+    if (!is_user_logged_in()) {
+        wp_send_json_error(array('message' => __('You must be logged in to change your password.', 'somity-manager')));
+    }
+    
+    $current_user = wp_get_current_user();
+    $current_password = isset($_POST['current_password']) ? $_POST['current_password'] : '';
+    $new_password = isset($_POST['new_password']) ? $_POST['new_password'] : '';
+    
+    // Check if current password is correct
+    if (!wp_check_password($current_password, $current_user->user_pass, $current_user->ID)) {
+        wp_send_json_error(array('message' => __('Current password is incorrect.', 'somity-manager')));
+    }
+    
+    // Update password
+    $result = wp_update_user(array(
+        'ID' => $current_user->ID,
+        'user_pass' => $new_password
+    ));
+    
+    if (is_wp_error($result)) {
+        wp_send_json_error(array('message' => __('Error updating password. Please try again.', 'somity-manager')));
+    }
+    
+    // Send success response
+    wp_send_json_success(array('message' => __('Password changed successfully.', 'somity-manager')));
+}

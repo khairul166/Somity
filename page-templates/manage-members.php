@@ -162,7 +162,7 @@ get_header();
                                     }
                                     
                                     // Get per page value
-                                    $per_page = isset($_GET['per_page']) ? intval($_GET['per_page']) : 1;
+                                    $per_page = isset($_GET['per_page']) ? intval($_GET['per_page']) : 10;
                                     
                                     // Get filter values
                                     $status = isset($_GET['status']) ? sanitize_text_field($_GET['status']) : 'all';
