@@ -609,3 +609,97 @@
     });
 
 })(jQuery);
+
+
+// // Approve payment button
+//  $(document).on('click', '.approve-payment', function() {
+//     var paymentId = $(this).data('id');
+//     var $btn = $(this);
+    
+//     if (confirm('Are you sure you want to approve this payment?')) {
+//         $.ajax({
+//             type: 'POST',
+//             url: somityAjax.ajaxurl,
+//             data: {
+//                 action: 'approve_payment',
+//                 payment_id: paymentId,
+//                 nonce: somityAjax.nonce
+//             },
+//             beforeSend: function() {
+//                 $btn.prop('disabled', true);
+//                 $btn.html('<i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>');
+//             },
+//             success: function(response) {
+//                 if (response.success) {
+//                     // Show success message
+//                     alert(response.data.message);
+//                     // Reload the page
+//                     location.reload();
+//                 } else {
+//                     // Show error message
+//                     alert(response.data.message);
+//                     $btn.prop('disabled', false);
+//                     $btn.html('<i class="bi bi-check-lg"></i>');
+//                 }
+//             },
+//             error: function(xhr, status, error) {
+//                 // Show error message
+//                 alert(somityAjax.texts.errorMessage);
+//                 console.log(xhr.responseText);
+//                 $btn.prop('disabled', false);
+//                 $btn.html('<i class="bi bi-check-lg"></i>');
+//             }
+//         });
+//     }
+// });
+
+// // Reject payment button
+//  $(document).on('click', '.reject-payment', function() {
+//     var paymentId = $(this).data('id');
+//     var $btn = $(this);
+    
+//     if (confirm('Are you sure you want to reject this payment?')) {
+//         $.ajax({
+//             type: 'POST',
+//             url: somityAjax.ajaxurl,
+//             data: {
+//                 action: 'reject_payment',
+//                 payment_id: paymentId,
+//                 nonce: somityAjax.nonce
+//             },
+//             beforeSend: function() {
+//                 $btn.prop('disabled', true);
+//                 $btn.html('<i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>');
+//             },
+//             success: function(response) {
+//                 if (response.success) {
+//                     // Show success message
+//                     alert(response.data.message);
+//                     // Reload the page
+//                     location.reload();
+//                 } else {
+//                     // Show error message
+//                     alert(response.data.message);
+//                     $btn.prop('disabled', false);
+//                     $btn.html('<i class="bi bi-x-lg"></i>');
+//                 }
+//             },
+//             error: function(xhr, status, error) {
+//                 // Show error message
+//                 alert(somityAjax.texts.errorMessage);
+//                 console.log(xhr.responseText);
+//                 $btn.prop('disabled', false);
+//                 $btn.html('<i class="bi bi-x-lg"></i>');
+//             }
+//         });
+//     }
+// });
+
+// // Export payments
+//  $(document).on('click', '#export-payments', function() {
+//     var status = $('select[name="status"]').val();
+//     var search = $('input[name="search"]').val();
+//     var month = $('select[name="month"]').val();
+    
+//     window.location.href = somityAjax.ajaxurl + '?action=export_payments&status=' + status + '&search=' + search + '&month=' + month + '&nonce=' + somityAjax.nonce;
+// });

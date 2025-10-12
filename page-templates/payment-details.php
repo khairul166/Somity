@@ -16,28 +16,18 @@ if (!$payment_id) {
     exit;
 }
 
-// Get payment details
- $payment = get_post($payment_id);
+// Get payment details from database
+global $wpdb;
+ $table_name = $wpdb->prefix . 'somity_payments';
+ $payment = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $payment_id));
 
-if (!$payment || $payment->post_type !== 'payment') {
+if (!$payment) {
     wp_redirect(home_url('/member-dashboard/'));
     exit;
 }
 
-// Get payment meta
- $amount = get_post_meta($payment_id, '_amount', true);
- $transaction_id = get_post_meta($payment_id, '_transaction_id', true);
- $payment_date = get_post_meta($payment_id, '_payment_date', true);
- $payment_method = get_post_meta($payment_id, '_payment_method', true);
- $payment_note = get_post_meta($payment_id, '_payment_note', true);
- $rejection_reason = get_post_meta($payment_id, '_rejection_reason', true);
-
-// Get payment status
- $status_terms = wp_get_post_terms($payment_id, 'payment_status');
- $status = !empty($status_terms) ? $status_terms[0]->slug : 'unknown';
-
 // Get member details
- $member = get_user_by('id', $payment->post_author);
+ $member = get_user_by('id', $payment->member_id);
 
 get_header();
 ?>
@@ -59,23 +49,23 @@ get_header();
                             <table class="table table-sm">
                                 <tr>
                                     <th width="30%"><?php _e('Payment ID:', 'somity-manager'); ?></th>
-                                    <td><?php echo esc_html($payment_id); ?></td>
+                                    <td><?php echo esc_html($payment->id); ?></td>
                                 </tr>
                                 <tr>
                                     <th><?php _e('Amount:', 'somity-manager'); ?></th>
-                                    <td>$<?php echo esc_html(number_format($amount, 2)); ?></td>
+                                    <td>$<?php echo esc_html(number_format($payment->amount, 2)); ?></td>
                                 </tr>
                                 <tr>
                                     <th><?php _e('Transaction ID:', 'somity-manager'); ?></th>
-                                    <td><?php echo esc_html($transaction_id); ?></td>
+                                    <td><?php echo esc_html($payment->transaction_id); ?></td>
                                 </tr>
                                 <tr>
                                     <th><?php _e('Payment Date:', 'somity-manager'); ?></th>
-                                    <td><?php echo esc_html(date('F j, Y', strtotime($payment_date))); ?></td>
+                                    <td><?php echo esc_html(date_i18n(get_option('date_format'), strtotime($payment->payment_date))); ?></td>
                                 </tr>
                                 <tr>
                                     <th><?php _e('Payment Method:', 'somity-manager'); ?></th>
-                                    <td><?php echo esc_html(ucwords(str_replace('_', ' ', $payment_method))); ?></td>
+                                    <td><?php echo esc_html(ucwords(str_replace('_', ' ', $payment->payment_method))); ?></td>
                                 </tr>
                                 <tr>
                                     <th><?php _e('Status:', 'somity-manager'); ?></th>
@@ -84,7 +74,7 @@ get_header();
                                         $status_class = '';
                                         $status_icon = '';
                                         
-                                        switch ($status) {
+                                        switch ($payment->status) {
                                             case 'approved':
                                                 $status_class = 'status-approved';
                                                 $status_icon = '✅';
@@ -100,16 +90,10 @@ get_header();
                                         }
                                         ?>
                                         <span class="status-badge <?php echo esc_attr($status_class); ?>">
-                                            <?php echo esc_html($status_icon); ?> <?php echo esc_html(ucfirst($status)); ?>
+                                            <?php echo esc_html($status_icon); ?> <?php echo esc_html(ucfirst($payment->status)); ?>
                                         </span>
                                     </td>
                                 </tr>
-                                <?php if ($status === 'rejected' && !empty($rejection_reason)) : ?>
-                                <tr>
-                                    <th><?php _e('Rejection Reason:', 'somity-manager'); ?></th>
-                                    <td><?php echo esc_html($rejection_reason); ?></td>
-                                </tr>
-                                <?php endif; ?>
                             </table>
                         </div>
                         <div class="col-md-6">
@@ -129,40 +113,29 @@ get_header();
                                 </tr>
                                 <tr>
                                     <th><?php _e('Submission Date:', 'somity-manager'); ?></th>
-                                    <td><?php echo esc_html(date('F j, Y g:i A', strtotime($payment->post_date))); ?></td>
+                                    <td><?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($payment->created_at))); ?></td>
                                 </tr>
                             </table>
                         </div>
                     </div>
                     
-                    <?php if (!empty($payment_note)) : ?>
-                    <div class="mb-4">
-                        <h6><?php _e('Additional Notes', 'somity-manager'); ?></h6>
-                        <div class="card bg-light">
-                            <div class="card-body">
-                                <?php echo esc_html($payment_note); ?>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endif; ?>
-                    
-                    <?php if (has_post_thumbnail($payment_id)) : ?>
+                    <?php if (!empty($payment->payment_screenshot)) : ?>
                     <div class="mb-4">
                         <h6><?php _e('Payment Screenshot', 'somity-manager'); ?></h6>
                         <div class="card bg-light">
                             <div class="card-body text-center">
-                                <?php echo get_the_post_thumbnail($payment_id, 'large', array('class' => 'img-fluid')); ?>
+                                <img src="<?php echo esc_url($payment->payment_screenshot); ?>" alt="Payment Screenshot" class="img-fluid">
                             </div>
                         </div>
                     </div>
                     <?php endif; ?>
                     
-                    <?php if (current_user_can('administrator') && $status === 'pending') : ?>
+                    <?php if (current_user_can('administrator') && $payment->status === 'pending') : ?>
                     <div class="d-flex justify-content-end gap-2">
-                        <button type="button" class="btn btn-success approve-payment" data-id="<?php echo esc_attr($payment_id); ?>">
+                        <button type="button" class="btn btn-success approve-payment" data-id="<?php echo esc_attr($payment->id); ?>">
                             <i class="bi bi-check-lg"></i> <?php _e('Approve', 'somity-manager'); ?>
                         </button>
-                        <button type="button" class="btn btn-danger reject-payment" data-id="<?php echo esc_attr($payment_id); ?>">
+                        <button type="button" class="btn btn-danger reject-payment" data-id="<?php echo esc_attr($payment->id); ?>">
                             <i class="bi bi-x-lg"></i> <?php _e('Reject', 'somity-manager'); ?>
                         </button>
                     </div>
@@ -172,5 +145,129 @@ get_header();
         </div>
     </div>
 </div>
+
+<!-- Reject Payment Modal -->
+<div class="modal fade" id="rejectPaymentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><?php _e('Reject Payment', 'somity-manager'); ?></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="reject-payment-form">
+                    <div class="mb-3">
+                        <label for="rejection-reason" class="form-label"><?php _e('Reason for Rejection', 'somity-manager'); ?></label>
+                        <textarea class="form-control" id="rejection-reason" rows="3" required></textarea>
+                    </div>
+                    <input type="hidden" id="payment-id" value="<?php echo esc_attr($payment_id); ?>">
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?php _e('Cancel', 'somity-manager'); ?></button>
+                <button type="button" class="btn btn-danger" id="confirm-reject"><?php _e('Reject Payment', 'somity-manager'); ?></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- <script>
+jQuery(document).ready(function($) {
+    // Approve payment button
+    $('.approve-payment').on('click', function() {
+        var paymentId = $(this).data('id');
+        var $btn = $(this);
+        
+        if (confirm('Are you sure you want to approve this payment?')) {
+            $.ajax({
+                type: 'POST',
+                url: somityAjax.ajaxurl,
+                data: {
+                    action: 'approve_payment',
+                    payment_id: paymentId,
+                    nonce: somityAjax.nonce
+                },
+                beforeSend: function() {
+                    $btn.prop('disabled', true);
+                    $btn.html('<i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i> Processing...');
+                },
+                success: function(response) {
+                    if (response.success) {
+                        // Show success message
+                        alert(response.data.message);
+                        // Reload the page
+                        location.reload();
+                    } else {
+                        // Show error message
+                        alert(response.data.message);
+                        $btn.prop('disabled', false);
+                        $btn.html('<i class="bi bi-check-lg"></i> <?php _e('Approve', 'somity-manager'); ?>');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    // Show error message
+                    alert(somityAjax.texts.errorMessage);
+                    console.log(xhr.responseText);
+                    $btn.prop('disabled', false);
+                    $btn.html('<i class="bi bi-check-lg"></i> <?php _e('Approve', 'somity-manager'); ?>');
+                }
+            });
+        }
+    });
+    
+    // Reject payment button
+    $('.reject-payment').on('click', function() {
+        $('#payment-id').val($(this).data('id'));
+        $('#rejectPaymentModal').modal('show');
+    });
+    
+    // Confirm reject payment
+    $('#confirm-reject').on('click', function() {
+        var paymentId = $('#payment-id').val();
+        var rejectionReason = $('#rejection-reason').val();
+        var $btn = $(this);
+        
+        if (!rejectionReason) {
+            alert('Please provide a reason for rejection.');
+            return;
+        }
+        
+        $.ajax({
+            type: 'POST',
+            url: somityAjax.ajaxurl,
+            data: {
+                action: 'reject_payment',
+                payment_id: paymentId,
+                reason: rejectionReason,
+                nonce: somityAjax.nonce
+            },
+            beforeSend: function() {
+                $btn.prop('disabled', true);
+                $btn.html('<i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i> Processing...');
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Show success message
+                    alert(response.data.message);
+                    // Reload the page
+                    location.reload();
+                } else {
+                    // Show error message
+                    alert(response.data.message);
+                    $btn.prop('disabled', false);
+                    $btn.html('<?php _e('Reject Payment', 'somity-manager'); ?>');
+                }
+            },
+            error: function(xhr, status, error) {
+                // Show error message
+                alert(somityAjax.texts.errorMessage);
+                console.log(xhr.responseText);
+                $btn.prop('disabled', false);
+                $btn.html('<?php _e('Reject Payment', 'somity-manager'); ?>');
+            }
+        });
+    });
+});
+</script> -->
 
 <?php get_footer(); ?>

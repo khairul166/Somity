@@ -1,6 +1,6 @@
 <?php
 /**
- * Template Name: Admin Dashboard
+ * Template Name: Payments
  */
 
 if (!is_user_logged_in() || !current_user_can('administrator')) {
@@ -11,7 +11,7 @@ if (!is_user_logged_in() || !current_user_can('administrator')) {
 get_header();
 ?>
 
-<!-- Admin Dashboard Content -->
+<!-- Payments Content -->
 <div class="container my-5">
     <div class="row">
         <!-- Sidebar -->
@@ -32,9 +32,9 @@ get_header();
                 </div>
                 
                 <ul class="sidebar-menu">
-                    <li><a href="<?php echo esc_url(home_url('/admin-dashboard/')); ?>" class="active"><i class="bi bi-speedometer2"></i> <?php _e('Dashboard', 'somity-manager'); ?></a></li>
+                    <li><a href="<?php echo esc_url(home_url('/admin-dashboard/')); ?>"><i class="bi bi-speedometer2"></i> <?php _e('Dashboard', 'somity-manager'); ?></a></li>
                     <li><a href="<?php echo esc_url(home_url('/manage-members/')); ?>"><i class="bi bi-people"></i> <?php _e('Manage Members', 'somity-manager'); ?></a></li>
-                    <li><a href="<?php echo esc_url(home_url('/approve-payments/')); ?>"><i class="bi bi-cash-stack"></i> <?php _e('Approve Payments', 'somity-manager'); ?></a></li>
+                    <li><a href="<?php echo esc_url(home_url('/approve-payments/')); ?>" class="active"><i class="bi bi-cash-stack"></i> <?php _e('Approve Payments', 'somity-manager'); ?></a></li>
                     <li><a href="<?php echo esc_url(home_url('/installments/')); ?>"><i class="bi bi-calendar-check"></i> <?php _e('Installments', 'somity-manager'); ?></a></li>
                     <li><a href="<?php echo esc_url(home_url('/reports/')); ?>"><i class="bi bi-graph-up"></i> <?php _e('Reports', 'somity-manager'); ?></a></li>
                     <li><a href="<?php echo esc_url(home_url('/settings/')); ?>"><i class="bi bi-gear"></i> <?php _e('Settings', 'somity-manager'); ?></a></li>
@@ -46,20 +46,11 @@ get_header();
         <!-- Main Content -->
         <div class="col-lg-9">
             <div class="dashboard-content">
-                <h2 class="mb-4"><?php _e('Admin Dashboard', 'somity-manager'); ?></h2>
+                <h2 class="mb-4"><?php _e('Payment Management', 'somity-manager'); ?></h2>
                 
                 <!-- Stats Cards -->
                 <div class="row mb-4">
-                    <div class="col-md-3">
-                        <div class="stats-card">
-                            <div class="stats-icon">
-                                <i class="bi bi-people-fill"></i>
-                            </div>
-                            <div class="stats-number"><?php echo esc_html(somity_get_total_members()); ?></div>
-                            <div class="stats-label"><?php _e('Total Members', 'somity-manager'); ?></div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                         <div class="stats-card">
                             <div class="stats-icon">
                                 <i class="bi bi-clock-history"></i>
@@ -68,7 +59,7 @@ get_header();
                             <div class="stats-label"><?php _e('Pending Payments', 'somity-manager'); ?></div>
                         </div>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                         <div class="stats-card">
                             <div class="stats-icon">
                                 <i class="bi bi-check-circle-fill"></i>
@@ -77,7 +68,7 @@ get_header();
                             <div class="stats-label"><?php _e('Approved Payments', 'somity-manager'); ?></div>
                         </div>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                         <div class="stats-card">
                             <div class="stats-icon">
                                 <i class="bi bi-x-circle-fill"></i>
@@ -95,7 +86,7 @@ get_header();
                             <div class="col-md-4">
                                 <div class="input-group">
                                     <span class="input-group-text"><i class="bi bi-search"></i></span>
-                                    <input type="text" name="search" class="form-control" placeholder="<?php _e('Search by name or ID...', 'somity-manager'); ?>" value="<?php echo isset($_GET['search']) ? esc_attr($_GET['search']) : ''; ?>">
+                                    <input type="text" name="search" class="form-control" placeholder="<?php _e('Search by member name...', 'somity-manager'); ?>" value="<?php echo isset($_GET['search']) ? esc_attr($_GET['search']) : ''; ?>">
                                 </div>
                             </div>
                             <div class="col-md-3">
@@ -128,9 +119,9 @@ get_header();
                 <!-- Payments Table -->
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><?php _e('Recent Payments', 'somity-manager'); ?></h5>
+                        <h5 class="mb-0"><?php _e('Payments List', 'somity-manager'); ?></h5>
                         <div>
-                            <button id="export-payments" class="btn btn-sm btn-outline-primary me-2"><i class="bi bi-download"></i> <?php _e('Export', 'somity-manager'); ?></button>
+                            <button id="export-payments" class="btn btn-sm btn-outline-primary"><i class="bi bi-download"></i> <?php _e('Export', 'somity-manager'); ?></button>
                         </div>
                     </div>
                     <div class="card-body p-0">
@@ -139,8 +130,8 @@ get_header();
                                 <thead>
                                     <tr>
                                         <th><?php _e('Member', 'somity-manager'); ?></th>
-                                        <th><?php _e('Transaction ID', 'somity-manager'); ?></th>
                                         <th><?php _e('Amount', 'somity-manager'); ?></th>
+                                        <th><?php _e('Transaction ID', 'somity-manager'); ?></th>
                                         <th><?php _e('Payment Date', 'somity-manager'); ?></th>
                                         <th><?php _e('Payment Method', 'somity-manager'); ?></th>
                                         <th><?php _e('Status', 'somity-manager'); ?></th>
@@ -149,10 +140,12 @@ get_header();
                                 </thead>
                                 <tbody>
                                     <?php
-                                    // Get current page number
-                                    $paged = max(1, get_query_var('paged') ? get_query_var('paged') : (isset($_GET['paged']) ? intval($_GET['paged']) : 1));
+                                    // Get current page number from query string
+                                    $paged = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
+                                    
                                     // Get per page value
                                     $per_page = isset($_GET['per_page']) ? intval($_GET['per_page']) : 10;
+                                    
                                     // Get filter values
                                     $status = isset($_GET['status']) ? sanitize_text_field($_GET['status']) : 'all';
                                     $search = isset($_GET['search']) ? sanitize_text_field($_GET['search']) : '';
@@ -163,16 +156,6 @@ get_header();
                                     
                                     if ($payments_data['items']) {
                                         foreach ($payments_data['items'] as $payment) {
-                                            // Generate a random color for the avatar
-                                            $avatar_colors = array('#6c5ce7', '#fd79a8', '#fdcb6e', '#00b894', '#0984e3', '#a29bfe');
-                                            $avatar_color = $avatar_colors[array_rand($avatar_colors)];
-                                            
-                                            // Get member initials
-                                            $member_initials = substr($payment->member_name, 0, 1);
-                                            
-                                            // Get payment date
-                                            $payment_date = date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($payment->payment_date));
-                                            
                                             // Get status icon
                                             $status_icon = '';
                                             switch ($payment->status) {
@@ -190,8 +173,8 @@ get_header();
                                             <tr>
                                                 <td>
                                                     <div class="d-flex align-items-center">
-                                                        <div class="user-avatar me-2" style="width: 40px; height: 40px; font-size: 1rem; background-color: <?php echo esc_attr($avatar_color); ?>;">
-                                                            <?php echo esc_html($member_initials); ?>
+                                                        <div class="user-avatar me-2" style="width: 40px; height: 40px; font-size: 1rem; background-color: #6c5ce7;">
+                                                            <?php echo esc_html(substr($payment->member_name, 0, 1)); ?>
                                                         </div>
                                                         <div>
                                                             <div class="fw-bold"><?php echo esc_html($payment->member_name); ?></div>
@@ -199,18 +182,28 @@ get_header();
                                                         </div>
                                                     </div>
                                                 </td>
+                                                <td>$<?php echo number_format($payment->amount, 2); ?></td>
                                                 <td><?php echo esc_html($payment->transaction_id); ?></td>
-                                                <td>$<?php echo esc_html(number_format($payment->amount, 2)); ?></td>
-                                                <td><?php echo esc_html($payment_date); ?></td>
+                                                <td><?php echo date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($payment->payment_date)); ?></td>
                                                 <td><?php echo esc_html(ucfirst($payment->payment_method)); ?></td>
-                                                <td><span class="status-badge status-<?php echo esc_attr($payment->status); ?>"><?php echo esc_html(ucfirst($payment->status)); ?> <?php echo $status_icon; ?></span></td>
+                                                <td>
+                                                    <span class="status-badge status-<?php echo esc_attr($payment->status); ?>">
+                                                        <?php echo esc_html(ucfirst($payment->status)); ?> <?php echo $status_icon; ?>
+                                                    </span>
+                                                </td>
                                                 <td>
                                                     <div class="btn-group" role="group">
                                                         <?php if ($payment->status == 'pending') : ?>
-                                                            <button type="button" class="btn btn-sm btn-outline-success approve-payment" data-id="<?php echo esc_attr($payment->id); ?>" title="<?php _e('Approve', 'somity-manager'); ?>"><i class="bi bi-check-lg"></i></button>
-                                                            <button type="button" class="btn btn-sm btn-outline-danger reject-payment" data-id="<?php echo esc_attr($payment->id); ?>" title="<?php _e('Reject', 'somity-manager'); ?>"><i class="bi bi-x-lg"></i></button>
+                                                            <button type="button" class="btn btn-sm btn-outline-success approve-payment" data-id="<?php echo esc_attr($payment->id); ?>" title="<?php _e('Approve', 'somity-manager'); ?>">
+                                                                <i class="bi bi-check-lg"></i>
+                                                            </button>
+                                                            <button type="button" class="btn btn-sm btn-outline-danger reject-payment" data-id="<?php echo esc_attr($payment->id); ?>" title="<?php _e('Reject', 'somity-manager'); ?>">
+                                                                <i class="bi bi-x-lg"></i>
+                                                            </button>
                                                         <?php endif; ?>
-                                                        <a href="<?php echo esc_url(home_url('/payment-details/?payment_id=' . $payment->id)); ?>" class="btn btn-sm btn-outline-primary" title="<?php _e('View', 'somity-manager'); ?>"><i class="bi bi-eye"></i></a>
+                                                        <a href="<?php echo esc_url(home_url('/payment-details/?payment_id=' . $payment->id)); ?>" class="btn btn-sm btn-outline-primary" title="<?php _e('View Details', 'somity-manager'); ?>">
+                                                            <i class="bi bi-eye"></i>
+                                                        </a>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -227,8 +220,8 @@ get_header();
                     <div class="card-footer d-flex justify-content-between align-items-center">
                         <div>
                             <?php 
-                            $start_record = ($payments_data['current_page'] - 1) * 10 + 1;
-                            $end_record = min($start_record + 9, $payments_data['total']);
+                            $start_record = ($payments_data['current_page'] - 1) * $per_page + 1;
+                            $end_record = min($start_record + $per_page - 1, $payments_data['total']);
                             echo sprintf(
                                 __('Showing %d-%d of %d records', 'somity-manager'),
                                 $start_record,
@@ -244,7 +237,8 @@ get_header();
                                 $query_params = array(
                                     'status' => $status,
                                     'search' => $search,
-                                    'month' => $month
+                                    'month' => $month,
+                                    'per_page' => $per_page
                                 );
                                 
                                 // Remove empty parameters

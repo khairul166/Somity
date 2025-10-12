@@ -352,6 +352,10 @@ function somity_ajax_submit_payment() {
         wp_send_json_error(array('message' => __('You must be logged in to submit a payment.', 'somity-manager')));
     }
     
+    // Get current user
+    $current_user = wp_get_current_user();
+    $member_id = $current_user->ID;
+    
     // Sanitize and validate input
     $amount = isset($_POST['amount']) ? floatval($_POST['amount']) : 0;
     $transaction_id = isset($_POST['transaction_id']) ? sanitize_text_field($_POST['transaction_id']) : '';
@@ -368,35 +372,11 @@ function somity_ajax_submit_payment() {
         wp_send_json_error(array('message' => __('Please fill in all required fields.', 'somity-manager')));
     }
     
-    // Create payment post
-    $payment_data = array(
-        'post_title' => 'Payment by ' . wp_get_current_user()->display_name,
-        'post_content' => $payment_note,
-        'post_status' => 'publish',
-        'post_author' => get_current_user_id(),
-        'post_type' => 'payment',
-    );
-    
-    $payment_id = wp_insert_post($payment_data);
-    
-    if (is_wp_error($payment_id)) {
-        error_log('Error creating payment post: ' . $payment_id->get_error_message());
-        wp_send_json_error(array('message' => __('Error creating payment record.', 'somity-manager')));
-    }
-    
-    error_log('Payment post created with ID: ' . $payment_id);
-    
-    // Save payment meta
-    update_post_meta($payment_id, '_amount', $amount);
-    update_post_meta($payment_id, '_transaction_id', $transaction_id);
-    update_post_meta($payment_id, '_payment_date', $payment_date);
-    update_post_meta($payment_id, '_payment_method', $payment_method);
-    update_post_meta($payment_id, '_payment_note', $payment_note);
-    
-    // Set payment status to pending
-    wp_set_post_terms($payment_id, 'pending', 'payment_status');
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'somity_payments';
     
     // Handle file upload
+    $payment_screenshot = '';
     if (!empty($_FILES['payment_screenshot']['name'])) {
         error_log('File upload detected: ' . $_FILES['payment_screenshot']['name']);
         
@@ -438,37 +418,73 @@ function somity_ajax_submit_payment() {
             require_once(ABSPATH . 'wp-admin/includes/media.php');
             
             // Let WordPress handle the file upload
-            $attachment_id = media_handle_upload('payment_screenshot', $payment_id);
+            $attachment_id = media_handle_upload('payment_screenshot', 0);
             
             // Check for errors in file upload
             if (is_wp_error($attachment_id)) {
                 // Log the error but don't fail the entire submission
                 error_log('File upload error: ' . $attachment_id->get_error_message());
             } else {
-                // If upload was successful, set as featured image
-                set_post_thumbnail($payment_id, $attachment_id);
-                error_log('File upload successful. Attachment ID: ' . $attachment_id);
+                // If upload was successful, get the attachment URL
+                $payment_screenshot = wp_get_attachment_url($attachment_id);
+                error_log('File upload successful. Attachment URL: ' . $payment_screenshot);
             }
         }
     } else {
         error_log('No file uploaded');
     }
     
+    // Prepare data for insertion
+    $data = array(
+        'member_id' => $member_id,
+        'amount' => $amount,
+        'transaction_id' => $transaction_id,
+        'payment_date' => $payment_date,
+        'payment_method' => $payment_method,
+        'status' => 'pending', // Default status is pending
+        'payment_screenshot' => $payment_screenshot,
+        'created_at' => current_time('mysql'),
+        'updated_at' => current_time('mysql'),
+    );
+    
+    // Format for database insertion
+    $format = array('%d', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s');
+    
+    // Insert payment data into the database
+    $result = $wpdb->insert($table_name, $data, $format);
+    
+    if (!$result) {
+        error_log('Error inserting payment into database: ' . $wpdb->last_error);
+        wp_send_json_error(array('message' => __('Error saving payment record.', 'somity-manager')));
+    }
+    
+    $payment_id = $wpdb->insert_id;
+    error_log('Payment record created with ID: ' . $payment_id);
+    
     // Update installment status if applicable
     if ($installment_id) {
-        $installment = get_post($installment_id);
-        if ($installment && $installment->post_type === 'installment') {
-            wp_set_post_terms($installment_id, 'paid', 'installment_status');
+        $installment_table = $wpdb->prefix . 'somity_installments';
+        $update_result = $wpdb->update(
+            $installment_table,
+            array('status' => 'paid', 'updated_at' => current_time('mysql')),
+            array('id' => $installment_id),
+            array('%s', '%s'),
+            array('%d')
+        );
+        
+        if ($update_result !== false) {
             error_log('Installment status updated to paid');
+        } else {
+            error_log('Error updating installment status: ' . $wpdb->last_error);
         }
     }
     
     // Create activity record
     $activity_data = array(
         'post_title' => 'Payment Submitted',
-        'post_content' => wp_get_current_user()->display_name . ' submitted a payment of ' . $amount,
+        'post_content' => $current_user->display_name . ' submitted a payment of ' . $amount,
         'post_status' => 'publish',
-        'post_author' => get_current_user_id(),
+        'post_author' => $member_id,
         'post_type' => 'activity',
     );
     
@@ -487,91 +503,91 @@ function somity_ajax_submit_payment() {
     ));
 }
 
-add_action('wp_ajax_approve_payment', 'somity_ajax_approve_payment');
-function somity_ajax_approve_payment() {
-    check_ajax_referer('somity-nonce', 'nonce');
+// add_action('wp_ajax_approve_payment', 'somity_ajax_approve_payment');
+// function somity_ajax_approve_payment() {
+//     check_ajax_referer('somity-nonce', 'nonce');
     
-    if (!current_user_can('administrator')) {
-        wp_send_json_error(array('message' => __('You do not have permission to approve payments.', 'somity-manager')));
-    }
+//     if (!current_user_can('administrator')) {
+//         wp_send_json_error(array('message' => __('You do not have permission to approve payments.', 'somity-manager')));
+//     }
     
-    $payment_id = intval($_POST['payment_id']);
-    $payment = get_post($payment_id);
+//     $payment_id = intval($_POST['payment_id']);
+//     $payment = get_post($payment_id);
     
-    if (!$payment || $payment->post_type !== 'payment') {
-        wp_send_json_error(array('message' => __('Invalid payment ID.', 'somity-manager')));
-    }
+//     if (!$payment || $payment->post_type !== 'payment') {
+//         wp_send_json_error(array('message' => __('Invalid payment ID.', 'somity-manager')));
+//     }
     
-    // Update payment status
-    wp_set_post_terms($payment_id, 'approved', 'payment_status');
+//     // Update payment status
+//     wp_set_post_terms($payment_id, 'approved', 'payment_status');
     
-    // Get payment details
-    $amount = get_post_meta($payment_id, '_amount', true);
-    $member_id = $payment->post_author;
-    $member = get_user_by('id', $member_id);
+//     // Get payment details
+//     $amount = get_post_meta($payment_id, '_amount', true);
+//     $member_id = $payment->post_author;
+//     $member = get_user_by('id', $member_id);
     
-    // Create activity record
-    $activity_data = array(
-        'post_title' => 'Payment Approved',
-        'post_content' => 'Payment of ' . $amount . ' by ' . $member->display_name . ' was approved',
-        'post_status' => 'publish',
-        'post_author' => get_current_user_id(),
-        'post_type' => 'activity',
-    );
+//     // Create activity record
+//     $activity_data = array(
+//         'post_title' => 'Payment Approved',
+//         'post_content' => 'Payment of ' . $amount . ' by ' . $member->display_name . ' was approved',
+//         'post_status' => 'publish',
+//         'post_author' => get_current_user_id(),
+//         'post_type' => 'activity',
+//     );
     
-    $activity_id = wp_insert_post($activity_data);
+//     $activity_id = wp_insert_post($activity_data);
     
-    if (!is_wp_error($activity_id)) {
-        wp_set_post_terms($activity_id, 'payment', 'activity_type');
-    }
+//     if (!is_wp_error($activity_id)) {
+//         wp_set_post_terms($activity_id, 'payment', 'activity_type');
+//     }
     
-    wp_send_json_success(array('message' => __('Payment has been approved successfully.', 'somity-manager')));
-}
+//     wp_send_json_success(array('message' => __('Payment has been approved successfully.', 'somity-manager')));
+// }
 
-add_action('wp_ajax_reject_payment', 'somity_ajax_reject_payment');
-function somity_ajax_reject_payment() {
-    check_ajax_referer('somity-nonce', 'nonce');
+// add_action('wp_ajax_reject_payment', 'somity_ajax_reject_payment');
+// function somity_ajax_reject_payment() {
+//     check_ajax_referer('somity-nonce', 'nonce');
     
-    if (!current_user_can('administrator')) {
-        wp_send_json_error(array('message' => __('You do not have permission to reject payments.', 'somity-manager')));
-    }
+//     if (!current_user_can('administrator')) {
+//         wp_send_json_error(array('message' => __('You do not have permission to reject payments.', 'somity-manager')));
+//     }
     
-    $payment_id = intval($_POST['payment_id']);
-    $reason = sanitize_textarea_field($_POST['reason']);
-    $payment = get_post($payment_id);
+//     $payment_id = intval($_POST['payment_id']);
+//     $reason = sanitize_textarea_field($_POST['reason']);
+//     $payment = get_post($payment_id);
     
-    if (!$payment || $payment->post_type !== 'payment') {
-        wp_send_json_error(array('message' => __('Invalid payment ID.', 'somity-manager')));
-    }
+//     if (!$payment || $payment->post_type !== 'payment') {
+//         wp_send_json_error(array('message' => __('Invalid payment ID.', 'somity-manager')));
+//     }
     
-    // Update payment status
-    wp_set_post_terms($payment_id, 'rejected', 'payment_status');
+//     // Update payment status
+//     wp_set_post_terms($payment_id, 'rejected', 'payment_status');
     
-    // Save rejection reason
-    update_post_meta($payment_id, '_rejection_reason', $reason);
+//     // Save rejection reason
+//     update_post_meta($payment_id, '_rejection_reason', $reason);
     
-    // Get payment details
-    $amount = get_post_meta($payment_id, '_amount', true);
-    $member_id = $payment->post_author;
-    $member = get_user_by('id', $member_id);
+//     // Get payment details
+//     $amount = get_post_meta($payment_id, '_amount', true);
+//     $member_id = $payment->post_author;
+//     $member = get_user_by('id', $member_id);
     
-    // Create activity record
-    $activity_data = array(
-        'post_title' => 'Payment Rejected',
-        'post_content' => 'Payment of ' . $amount . ' by ' . $member->display_name . ' was rejected. Reason: ' . $reason,
-        'post_status' => 'publish',
-        'post_author' => get_current_user_id(),
-        'post_type' => 'activity',
-    );
+//     // Create activity record
+//     $activity_data = array(
+//         'post_title' => 'Payment Rejected',
+//         'post_content' => 'Payment of ' . $amount . ' by ' . $member->display_name . ' was rejected. Reason: ' . $reason,
+//         'post_status' => 'publish',
+//         'post_author' => get_current_user_id(),
+//         'post_type' => 'activity',
+//     );
     
-    $activity_id = wp_insert_post($activity_data);
+//     $activity_id = wp_insert_post($activity_data);
     
-    if (!is_wp_error($activity_id)) {
-        wp_set_post_terms($activity_id, 'payment', 'activity_type');
-    }
+//     if (!is_wp_error($activity_id)) {
+//         wp_set_post_terms($activity_id, 'payment', 'activity_type');
+//     }
     
-    wp_send_json_success(array('message' => __('Payment has been rejected successfully.', 'somity-manager')));
-}
+//     wp_send_json_success(array('message' => __('Payment has been rejected successfully.', 'somity-manager')));
+// }
 
 add_action('wp_ajax_submit_contact_form', 'somity_ajax_submit_contact_form');
 add_action('wp_ajax_nopriv_submit_contact_form', 'somity_ajax_submit_contact_form');
@@ -608,102 +624,102 @@ function somity_ajax_submit_contact_form() {
 // AJAX handler for exporting payments
 add_action('wp_ajax_export_payments', 'somity_ajax_export_payments');
 
-function somity_ajax_export_payments() {
-    check_ajax_referer('somity-nonce', 'nonce');
+// function somity_ajax_export_payments() {
+//     check_ajax_referer('somity-nonce', 'nonce');
     
-    if (!current_user_can('administrator')) {
-        wp_die(__('You do not have permission to export payments.', 'somity-manager'));
-    }
+//     if (!current_user_can('administrator')) {
+//         wp_die(__('You do not have permission to export payments.', 'somity-manager'));
+//     }
     
-    $filterValue = isset($_GET['filter']) ? sanitize_text_field($_GET['filter']) : 'all';
-    $searchTerm = isset($_GET['search']) ? sanitize_text_field($_GET['search']) : '';
-    $monthFilter = isset($_GET['month']) ? sanitize_text_field($_GET['month']) : 'all';
+//     $filterValue = isset($_GET['filter']) ? sanitize_text_field($_GET['filter']) : 'all';
+//     $searchTerm = isset($_GET['search']) ? sanitize_text_field($_GET['search']) : '';
+//     $monthFilter = isset($_GET['month']) ? sanitize_text_field($_GET['month']) : 'all';
     
-    header('Content-Type: text/csv');
-    header('Content-Disposition: attachment; filename="payments_export.csv"');
+//     header('Content-Type: text/csv');
+//     header('Content-Disposition: attachment; filename="payments_export.csv"');
     
-    $output = fopen('php://output', 'w');
+//     $output = fopen('php://output', 'w');
     
-    // Add CSV headers
-    fputcsv($output, array(
-        'ID',
-        'Member',
-        'Amount',
-        'Transaction ID',
-        'Payment Date',
-        'Payment Method',
-        'Status',
-        'Note',
-    ));
+//     // Add CSV headers
+//     fputcsv($output, array(
+//         'ID',
+//         'Member',
+//         'Amount',
+//         'Transaction ID',
+//         'Payment Date',
+//         'Payment Method',
+//         'Status',
+//         'Note',
+//     ));
     
-    // Build query arguments
-    $args = array(
-        'post_type' => 'payment',
-        'post_status' => 'publish',
-        'posts_per_page' => -1,
-        'orderby' => 'date',
-        'order' => 'DESC',
-    );
+//     // Build query arguments
+//     $args = array(
+//         'post_type' => 'payment',
+//         'post_status' => 'publish',
+//         'posts_per_page' => -1,
+//         'orderby' => 'date',
+//         'order' => 'DESC',
+//     );
     
-    // Handle search filter
-    if (!empty($searchTerm)) {
-        $args['s'] = $searchTerm;
-    }
+//     // Handle search filter
+//     if (!empty($searchTerm)) {
+//         $args['s'] = $searchTerm;
+//     }
     
-    // Handle status filter
-    if ($filterValue !== 'all') {
-        $args['tax_query'] = array(
-            array(
-                'taxonomy' => 'payment_status',
-                'field' => 'slug',
-                'terms' => $filterValue,
-            ),
-        );
-    }
+//     // Handle status filter
+//     if ($filterValue !== 'all') {
+//         $args['tax_query'] = array(
+//             array(
+//                 'taxonomy' => 'payment_status',
+//                 'field' => 'slug',
+//                 'terms' => $filterValue,
+//             ),
+//         );
+//     }
     
-    // Handle month filter
-    if ($monthFilter !== 'all') {
-        $month = intval($monthFilter);
-        $year = date('Y');
+//     // Handle month filter
+//     if ($monthFilter !== 'all') {
+//         $month = intval($monthFilter);
+//         $year = date('Y');
         
-        $args['meta_query'] = array(
-            array(
-                'key' => '_payment_date',
-                'value' => $year . '-' . str_pad($month, 2, '0', STR_PAD_LEFT) . '%',
-                'compare' => 'LIKE',
-            ),
-        );
-    }
+//         $args['meta_query'] = array(
+//             array(
+//                 'key' => '_payment_date',
+//                 'value' => $year . '-' . str_pad($month, 2, '0', STR_PAD_LEFT) . '%',
+//                 'compare' => 'LIKE',
+//             ),
+//         );
+//     }
     
-    $payments_query = new WP_Query($args);
+//     $payments_query = new WP_Query($args);
     
-    // Add payment data
-    if ($payments_query->have_posts()) {
-        while ($payments_query->have_posts()) {
-            $payments_query->the_post();
-            $payment_id = get_the_ID();
-            $member = get_user_by('id', get_the_author_meta('ID'));
-            $status_terms = wp_get_post_terms($payment_id, 'payment_status');
-            $status = !empty($status_terms) ? $status_terms[0]->name : 'Unknown';
+//     // Add payment data
+//     if ($payments_query->have_posts()) {
+//         while ($payments_query->have_posts()) {
+//             $payments_query->the_post();
+//             $payment_id = get_the_ID();
+//             $member = get_user_by('id', get_the_author_meta('ID'));
+//             $status_terms = wp_get_post_terms($payment_id, 'payment_status');
+//             $status = !empty($status_terms) ? $status_terms[0]->name : 'Unknown';
             
-            fputcsv($output, array(
-                $payment_id,
-                $member->display_name,
-                get_post_meta($payment_id, '_amount', true),
-                get_post_meta($payment_id, '_transaction_id', true),
-                get_post_meta($payment_id, '_payment_date', true),
-                get_post_meta($payment_id, '_payment_method', true),
-                $status,
-                get_post_meta($payment_id, '_payment_note', true),
-            ));
-        }
-    }
+//             fputcsv($output, array(
+//                 $payment_id,
+//                 $member->display_name,
+//                 get_post_meta($payment_id, '_amount', true),
+//                 get_post_meta($payment_id, '_transaction_id', true),
+//                 get_post_meta($payment_id, '_payment_date', true),
+//                 get_post_meta($payment_id, '_payment_method', true),
+//                 $status,
+//                 get_post_meta($payment_id, '_payment_note', true),
+//             ));
+//         }
+//     }
     
-    wp_reset_postdata();
+//     wp_reset_postdata();
     
-    fclose($output);
-    exit;
-}
+//     fclose($output);
+//     exit;
+// }
 
 
 /**
@@ -1678,4 +1694,807 @@ function somity_ajax_export_installments() {
     
     fclose($output);
     exit;
+}
+
+
+
+
+/**
+ * Get all payments with pagination and filters
+ */
+function somity_get_payments_paginated($per_page = 10, $page = 1, $status = 'all', $search = '', $month = 'all') {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'somity_payments';
+    $offset = ($page - 1) * $per_page;
+    
+    // Build the base query
+    $query = "SELECT p.*, u.display_name as member_name 
+              FROM $table_name p
+              LEFT JOIN {$wpdb->users} u ON p.member_id = u.ID";
+    
+    $count_query = "SELECT COUNT(*) FROM $table_name p";
+    
+    // Initialize where conditions array
+    $where_conditions = array();
+    
+    // Handle status filter
+    if ($status !== 'all') {
+        $where_conditions[] = $wpdb->prepare("p.status = %s", $status);
+    }
+    
+    // Handle search filter
+    if (!empty($search)) {
+        $where_conditions[] = $wpdb->prepare("u.display_name LIKE %s", '%' . $wpdb->esc_like($search) . '%');
+    }
+    
+    // Handle month filter
+    if ($month !== 'all') {
+        $where_conditions[] = $wpdb->prepare("MONTH(p.payment_date) = %d", intval($month));
+    }
+    
+    // Add where conditions to queries if any exist
+    if (!empty($where_conditions)) {
+        $where_clause = " WHERE " . implode(" AND ", $where_conditions);
+        $query .= $where_clause;
+        $count_query .= $where_clause;
+    }
+    
+    // Add order and pagination to the main query
+    $query .= " ORDER BY p.payment_date DESC, p.id DESC";
+    $query .= $wpdb->prepare(" LIMIT %d OFFSET %d", $per_page, $offset);
+    
+    // Get the results
+    $payments = $wpdb->get_results($query);
+    $total = $wpdb->get_var($count_query);
+    
+    // Calculate pagination
+    $total_pages = $total > 0 ? ceil($total / $per_page) : 1;
+    
+    return array(
+        'items' => $payments,
+        'total' => $total,
+        'pages' => $total_pages,
+        'current_page' => $page
+    );
+}
+
+/**
+ * Get total pending payments
+ */
+function somity_get_total_pending_payments() {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'somity_payments';
+    
+    return $wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE status = 'pending'");
+}
+
+/**
+ * Get total approved payments
+ */
+function somity_get_total_approved_payments() {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'somity_payments';
+    
+    return $wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE status = 'approved'");
+}
+
+/**
+ * Get total rejected payments
+ */
+function somity_get_total_rejected_payments() {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'somity_payments';
+    
+    return $wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE status = 'rejected'");
+}
+
+/**
+ * Get payment statistics
+ */
+function somity_get_payment_stats() {
+    $total_pending = somity_get_total_pending_payments();
+    $total_approved = somity_get_total_approved_payments();
+    $total_rejected = somity_get_total_rejected_payments();
+    
+    return array(
+        'total_pending' => $total_pending,
+        'total_approved' => $total_approved,
+        'total_rejected' => $total_rejected,
+    );
+}
+
+/**
+ * Update payment status
+ */
+function somity_update_payment_status($payment_id, $status) {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'somity_payments';
+    
+    // Get payment details
+    $payment = $wpdb->get_row($wpdb->prepare(
+        "SELECT p.*, u.display_name as member_name FROM $table_name p
+         LEFT JOIN {$wpdb->users} u ON p.member_id = u.ID
+         WHERE p.id = %d",
+        $payment_id
+    ));
+    
+    if (!$payment) {
+        return false;
+    }
+    
+    // Update payment status
+    $result = $wpdb->update(
+        $table_name,
+        array(
+            'status' => $status,
+            'updated_at' => current_time('mysql'),
+        ),
+        array('id' => $payment_id),
+        array('%s', '%s'),
+        array('%d')
+    );
+    
+    if ($result === false) {
+        return false;
+    }
+    
+    // If payment is approved, update corresponding installment to paid
+    if ($status === 'approved') {
+        // Find the earliest pending installment for this member
+        $installment_table = $wpdb->prefix . 'somity_installments';
+        $installment = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $installment_table 
+             WHERE member_id = %d AND status = 'pending'
+             ORDER BY due_date ASC LIMIT 1",
+            $payment->member_id
+        ));
+        
+        if ($installment) {
+            // Update installment status to paid
+            $wpdb->update(
+                $installment_table,
+                array(
+                    'status' => 'paid',
+                    'updated_at' => current_time('mysql'),
+                ),
+                array('id' => $installment->id),
+                array('%s', '%s'),
+                array('%d')
+            );
+        }
+    }
+    
+    // Create activity record
+    $activity_data = array(
+        'post_title' => 'Payment ' . ucfirst($status),
+        'post_content' => 'Payment of ' . $payment->amount . ' by ' . $payment->member_name . ' was ' . $status,
+        'post_status' => 'publish',
+        'post_author' => get_current_user_id(),
+        'post_type' => 'activity',
+    );
+    
+    $activity_id = wp_insert_post($activity_data);
+    
+    if (!is_wp_error($activity_id)) {
+        wp_set_post_terms($activity_id, 'payment', 'activity_type');
+    }
+    
+    return true;
+}
+
+//AJAX handlers for payments
+add_action('wp_ajax_approve_payment', 'somity_ajax_approve_payment');
+function somity_ajax_approve_payment() {
+    check_ajax_referer('somity-nonce', 'nonce');
+    
+    if (!current_user_can('administrator')) {
+        wp_send_json_error(array('message' => __('You do not have permission to approve payments.', 'somity-manager')));
+    }
+    
+    $payment_id = isset($_POST['payment_id']) ? intval($_POST['payment_id']) : 0;
+    
+    if (!$payment_id) {
+        wp_send_json_error(array('message' => __('Invalid payment ID.', 'somity-manager')));
+    }
+    
+    $result = somity_update_payment_status($payment_id, 'approved');
+    
+    if ($result) {
+        wp_send_json_success(array('message' => __('Payment has been approved successfully.', 'somity-manager')));
+    } else {
+        wp_send_json_error(array('message' => __('Error approving payment.', 'somity-manager')));
+    }
+}
+
+add_action('wp_ajax_reject_payment', 'somity_ajax_reject_payment');
+function somity_ajax_reject_payment() {
+    check_ajax_referer('somity-nonce', 'nonce');
+    
+    if (!current_user_can('administrator')) {
+        wp_send_json_error(array('message' => __('You do not have permission to reject payments.', 'somity-manager')));
+    }
+    
+    $payment_id = isset($_POST['payment_id']) ? intval($_POST['payment_id']) : 0;
+    
+    if (!$payment_id) {
+        wp_send_json_error(array('message' => __('Invalid payment ID.', 'somity-manager')));
+    }
+    
+    $result = somity_update_payment_status($payment_id, 'rejected');
+    
+    if ($result) {
+        wp_send_json_success(array('message' => __('Payment has been rejected successfully.', 'somity-manager')));
+    } else {
+        wp_send_json_error(array('message' => __('Error rejecting payment.', 'somity-manager')));
+    }
+}
+
+add_action('wp_ajax_export_payments', 'somity_ajax_export_payments');
+function somity_ajax_export_payments() {
+    check_ajax_referer('somity-nonce', 'nonce');
+    
+    if (!current_user_can('administrator')) {
+        wp_die(__('You do not have permission to export payments.', 'somity-manager'));
+    }
+    
+    $status = isset($_GET['status']) ? sanitize_text_field($_GET['status']) : 'all';
+    $search = isset($_GET['search']) ? sanitize_text_field($_GET['search']) : '';
+    $month = isset($_GET['month']) ? sanitize_text_field($_GET['month']) : 'all';
+    
+    header('Content-Type: text/csv');
+    header('Content-Disposition: attachment; filename="payments_export.csv"');
+    
+    $output = fopen('php://output', 'w');
+    
+    // Add CSV headers
+    fputcsv($output, array(
+        'ID',
+        'Member',
+        'Amount',
+        'Transaction ID',
+        'Payment Date',
+        'Payment Method',
+        'Status',
+    ));
+    
+    // Get all payments with filters
+    $payments_data = somity_get_payments_paginated(-1, 1, $status, $search, $month);
+    
+    // Add payment data
+    if ($payments_data['items']) {
+        foreach ($payments_data['items'] as $payment) {
+            fputcsv($output, array(
+                $payment->id,
+                $payment->member_name,
+                $payment->amount,
+                $payment->transaction_id,
+                $payment->payment_date,
+                $payment->payment_method,
+                $payment->status,
+            ));
+        }
+    }
+    
+    fclose($output);
+    exit;
+}
+
+
+//===== Reports =====
+/**
+ * Generate report based on type and date range
+ */
+add_action('wp_ajax_generate_report', 'somity_ajax_generate_report');
+function somity_ajax_generate_report() {
+    check_ajax_referer('somity-nonce', 'nonce');
+    
+    if (!current_user_can('administrator')) {
+        wp_send_json_error(array('message' => __('You do not have permission to generate reports.', 'somity-manager')));
+    }
+    
+    $report_type = isset($_POST['report_type']) ? sanitize_text_field($_POST['report_type']) : '';
+    $date_range = isset($_POST['date_range']) ? sanitize_text_field($_POST['date_range']) : '';
+    $start_date = isset($_POST['start_date']) ? sanitize_text_field($_POST['start_date']) : '';
+    $end_date = isset($_POST['end_date']) ? sanitize_text_field($_POST['end_date']) : '';
+    
+    // Calculate date range
+    $dates = somity_calculate_date_range($date_range, $start_date, $end_date);
+    
+    // Generate report based on type
+    switch ($report_type) {
+        case 'payment_summary':
+            $report = somity_generate_payment_summary_report($dates['start'], $dates['end']);
+            break;
+        case 'member_payments':
+            $report = somity_generate_member_payments_report($dates['start'], $dates['end']);
+            break;
+        case 'installment_summary':
+            $report = somity_generate_installment_summary_report($dates['start'], $dates['end']);
+            break;
+        case 'overdue_installments':
+            $report = somity_generate_overdue_installments_report($dates['start'], $dates['end']);
+            break;
+        default:
+            wp_send_json_error(array('message' => __('Invalid report type.', 'somity-manager')));
+    }
+    
+    wp_send_json_success($report);
+}
+
+/**
+ * Calculate date range based on selection
+ */
+function somity_calculate_date_range($date_range, $start_date = '', $end_date = '') {
+    $now = current_time('timestamp');
+    
+    switch ($date_range) {
+        case 'current_month':
+            $start = date('Y-m-01', $now);
+            $end = date('Y-m-t', $now);
+            break;
+        case 'last_month':
+            $start = date('Y-m-01', strtotime('first day of last month', $now));
+            $end = date('Y-m-t', strtotime('last day of last month', $now));
+            break;
+        case 'current_quarter':
+            $current_quarter = ceil(date('n', $now) / 3);
+            $start = date('Y-m-d', mktime(0, 0, 0, ($current_quarter - 1) * 3 + 1, 1, date('Y', $now)));
+            $end = date('Y-m-d', mktime(0, 0, 0, $current_quarter * 3, date('t', mktime(0, 0, 0, $current_quarter * 3, 1, date('Y', $now))), date('Y', $now)));
+            break;
+        case 'last_quarter':
+            $last_quarter = ceil(date('n', $now) / 3) - 1;
+            if ($last_quarter == 0) {
+                $last_quarter = 4;
+                $year = date('Y', $now) - 1;
+            } else {
+                $year = date('Y', $now);
+            }
+            $start = date('Y-m-d', mktime(0, 0, 0, ($last_quarter - 1) * 3 + 1, 1, $year));
+            $end = date('Y-m-d', mktime(0, 0, 0, $last_quarter * 3, date('t', mktime(0, 0, 0, $last_quarter * 3, 1, $year)), $year));
+            break;
+        case 'current_year':
+            $start = date('Y-01-01', $now);
+            $end = date('Y-12-31', $now);
+            break;
+        case 'custom_range':
+            $start = $start_date;
+            $end = $end_date;
+            break;
+        default:
+            $start = date('Y-m-01', $now);
+            $end = date('Y-m-t', $now);
+    }
+    
+    return array(
+        'start' => $start,
+        'end' => $end
+    );
+}
+
+/**
+ * Generate payment summary report
+ */
+function somity_generate_payment_summary_report($start_date, $end_date) {
+    global $wpdb;
+    
+    $payments_table = $wpdb->prefix . 'somity_payments';
+    
+    // Get payment statistics
+    $total_payments = $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM $payments_table 
+         WHERE DATE(payment_date) BETWEEN %s AND %s",
+        $start_date, $end_date
+    ));
+    
+    $approved_payments = $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM $payments_table 
+         WHERE status = 'approved' AND DATE(payment_date) BETWEEN %s AND %s",
+        $start_date, $end_date
+    ));
+    
+    $rejected_payments = $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM $payments_table 
+         WHERE status = 'rejected' AND DATE(payment_date) BETWEEN %s AND %s",
+        $start_date, $end_date
+    ));
+    
+    $pending_payments = $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM $payments_table 
+         WHERE status = 'pending' AND DATE(payment_date) BETWEEN %s AND %s",
+        $start_date, $end_date
+    ));
+    
+    $total_amount = $wpdb->get_var($wpdb->prepare(
+        "SELECT SUM(amount) FROM $payments_table 
+         WHERE status = 'approved' AND DATE(payment_date) BETWEEN %s AND %s",
+        $start_date, $end_date
+    ));
+    
+    // Get payments by method
+    $payments_by_method = $wpdb->get_results($wpdb->prepare(
+        "SELECT payment_method, COUNT(*) as count, SUM(amount) as total 
+         FROM $payments_table 
+         WHERE status = 'approved' AND DATE(payment_date) BETWEEN %s AND %s 
+         GROUP BY payment_method",
+        $start_date, $end_date
+    ));
+    
+    // Build report data
+    $title = sprintf(__('Payment Summary Report (%s to %s)', 'somity-manager'), $start_date, $end_date);
+    
+    // Build table header
+    $header = '<tr>
+        <th>' . __('Date', 'somity-manager') . '</th>
+        <th>' . __('Total Payments', 'somity-manager') . '</th>
+        <th>' . __('Approved', 'somity-manager') . '</th>
+        <th>' . __('Rejected', 'somity-manager') . '</th>
+        <th>' . __('Pending', 'somity-manager') . '</th>
+        <th>' . __('Total Amount', 'somity-manager') . '</th>
+    </tr>';
+    
+    // Build table body
+    $body = '<tr>
+        <td>' . $start_date . ' - ' . $end_date . '</td>
+        <td>' . $total_payments . '</td>
+        <td>' . $approved_payments . '</td>
+        <td>' . $rejected_payments . '</td>
+        <td>' . $pending_payments . '</td>
+        <td>' . number_format($total_amount, 2) . '</td>
+    </tr>';
+    
+    // Build summary
+    $summary = '<div class="col-md-3">
+        <div class="card bg-light">
+            <div class="card-body text-center">
+                <h5>' . __('Total Payments', 'somity-manager') . '</h5>
+                <h3>' . $total_payments . '</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h5>' . __('Approved', 'somity-manager') . '</h5>
+                <h3>' . $approved_payments . '</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-danger text-white">
+            <div class="card-body text-center">
+                <h5>' . __('Rejected', 'somity-manager') . '</h5>
+                <h3>' . $rejected_payments . '</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body text-center">
+                <h5>' . __('Total Amount', 'somity-manager') . '</h5>
+                <h3>' . number_format($total_amount, 2) . '</h3>
+            </div>
+        </div>
+    </div>';
+    
+    // Build CSV data
+    $csv_data = '"' . __('Date', 'somity-manager') . '","' . __('Total Payments', 'somity-manager') . '","' . __('Approved', 'somity-manager') . '","' . __('Rejected', 'somity-manager') . '","' . __('Pending', 'somity-manager') . '","' . __('Total Amount', 'somity-manager') . '"' . "\n";
+    $csv_data .= '"' . $start_date . ' - ' . $end_date . '","' . $total_payments . '","' . $approved_payments . '","' . $rejected_payments . '","' . $pending_payments . '","' . number_format($total_amount, 2) . '"' . "\n";
+    
+    return array(
+        'title' => $title,
+        'header' => $header,
+        'body' => $body,
+        'summary' => $summary,
+        'csv_data' => $csv_data,
+        'filename' => 'payment_summary_' . $start_date . '_to_' . $end_date . '.csv'
+    );
+}
+
+/**
+ * Generate member payments report
+ */
+function somity_generate_member_payments_report($start_date, $end_date) {
+    global $wpdb;
+    
+    $payments_table = $wpdb->prefix . 'somity_payments';
+    
+    // Get member payments
+    $member_payments = $wpdb->get_results($wpdb->prepare(
+        "SELECT p.member_id, u.display_name as member_name, 
+                COUNT(*) as payment_count, SUM(p.amount) as total_amount,
+                SUM(CASE WHEN p.status = 'approved' THEN p.amount ELSE 0 END) as approved_amount,
+                SUM(CASE WHEN p.status = 'pending' THEN p.amount ELSE 0 END) as pending_amount
+         FROM $payments_table p
+         LEFT JOIN {$wpdb->users} u ON p.member_id = u.ID
+         WHERE DATE(p.payment_date) BETWEEN %s AND %s
+         GROUP BY p.member_id, u.display_name
+         ORDER BY u.display_name",
+        $start_date, $end_date
+    ));
+    
+    // Build report data
+    $title = sprintf(__('Member Payments Report (%s to %s)', 'somity-manager'), $start_date, $end_date);
+    
+    // Build table header
+    $header = '<tr>
+        <th>' . __('Member Name', 'somity-manager') . '</th>
+        <th>' . __('Member ID', 'somity-manager') . '</th>
+        <th>' . __('Payment Count', 'somity-manager') . '</th>
+        <th>' . __('Total Amount', 'somity-manager') . '</th>
+        <th>' . __('Approved Amount', 'somity-manager') . '</th>
+        <th>' . __('Pending Amount', 'somity-manager') . '</th>
+    </tr>';
+    
+    // Build table body
+    $body = '';
+    $csv_data = '"' . __('Member Name', 'somity-manager') . '","' . __('Member ID', 'somity-manager') . '","' . __('Payment Count', 'somity-manager') . '","' . __('Total Amount', 'somity-manager') . '","' . __('Approved Amount', 'somity-manager') . '","' . __('Pending Amount', 'somity-manager') . '"' . "\n";
+    
+    foreach ($member_payments as $payment) {
+        $body .= '<tr>
+            <td>' . esc_html($payment->member_name) . '</td>
+            <td>CSM-' . date('Y') . '-' . str_pad($payment->member_id, 3, '0', STR_PAD_LEFT) . '</td>
+            <td>' . $payment->payment_count . '</td>
+            <td>' . number_format($payment->total_amount, 2) . '</td>
+            <td>' . number_format($payment->approved_amount, 2) . '</td>
+            <td>' . number_format($payment->pending_amount, 2) . '</td>
+        </tr>';
+        
+        $csv_data .= '"' . $payment->member_name . '","CSM-' . date('Y') . '-' . str_pad($payment->member_id, 3, '0', STR_PAD_LEFT) . '","' . $payment->payment_count . '","' . number_format($payment->total_amount, 2) . '","' . number_format($payment->approved_amount, 2) . '","' . number_format($payment->pending_amount, 2) . '"' . "\n";
+    }
+    
+    // Build summary
+    $total_members = count($member_payments);
+    $total_payments = array_sum(array_column($member_payments, 'payment_count'));
+    $total_amount = array_sum(array_column($member_payments, 'total_amount'));
+    $approved_amount = array_sum(array_column($member_payments, 'approved_amount'));
+    $pending_amount = array_sum(array_column($member_payments, 'pending_amount'));
+    
+    $summary = '<div class="col-md-3">
+        <div class="card bg-light">
+            <div class="card-body text-center">
+                <h5>' . __('Total Members', 'somity-manager') . '</h5>
+                <h3>' . $total_members . '</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <h5>' . __('Total Payments', 'somity-manager') . '</h5>
+                <h3>' . $total_payments . '</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h5>' . __('Approved Amount', 'somity-manager') . '</h5>
+                <h3>' . number_format($approved_amount, 2) . '</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body text-center">
+                <h5>' . __('Pending Amount', 'somity-manager') . '</h5>
+                <h3>' . number_format($pending_amount, 2) . '</h3>
+            </div>
+        </div>
+    </div>';
+    
+    return array(
+        'title' => $title,
+        'header' => $header,
+        'body' => $body,
+        'summary' => $summary,
+        'csv_data' => $csv_data,
+        'filename' => 'member_payments_' . $start_date . '_to_' . $end_date . '.csv'
+    );
+}
+
+/**
+ * Generate installment summary report
+ */
+function somity_generate_installment_summary_report($start_date, $end_date) {
+    global $wpdb;
+    
+    $installments_table = $wpdb->prefix . 'somity_installments';
+    
+    // Get installment statistics
+    $total_installments = $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM $installments_table 
+         WHERE DATE(due_date) BETWEEN %s AND %s",
+        $start_date, $end_date
+    ));
+    
+    $paid_installments = $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM $installments_table 
+         WHERE status = 'paid' AND DATE(due_date) BETWEEN %s AND %s",
+        $start_date, $end_date
+    ));
+    
+    $pending_installments = $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM $installments_table 
+         WHERE status = 'pending' AND DATE(due_date) BETWEEN %s AND %s",
+        $start_date, $end_date
+    ));
+    
+    $overdue_installments = $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM $installments_table 
+         WHERE status = 'pending' AND due_date < CURDATE() AND DATE(due_date) BETWEEN %s AND %s",
+        $start_date, $end_date
+    ));
+    
+    $total_amount = $wpdb->get_var($wpdb->prepare(
+        "SELECT SUM(amount) FROM $installments_table 
+         WHERE DATE(due_date) BETWEEN %s AND %s",
+        $start_date, $end_date
+    ));
+    
+    $paid_amount = $wpdb->get_var($wpdb->prepare(
+        "SELECT SUM(amount) FROM $installments_table 
+         WHERE status = 'paid' AND DATE(due_date) BETWEEN %s AND %s",
+        $start_date, $end_date
+    ));
+    
+    // Build report data
+    $title = sprintf(__('Installment Summary Report (%s to %s)', 'somity-manager'), $start_date, $end_date);
+    
+    // Build table header
+    $header = '<tr>
+        <th>' . __('Date', 'somity-manager') . '</th>
+        <th>' . __('Total Installments', 'somity-manager') . '</th>
+        <th>' . __('Paid', 'somity-manager') . '</th>
+        <th>' . __('Pending', 'somity-manager') . '</th>
+        <th>' . __('Overdue', 'somity-manager') . '</th>
+        <th>' . __('Total Amount', 'somity-manager') . '</th>
+        <th>' . __('Paid Amount', 'somity-manager') . '</th>
+    </tr>';
+    
+    // Build table body
+    $body = '<tr>
+        <td>' . $start_date . ' - ' . $end_date . '</td>
+        <td>' . $total_installments . '</td>
+        <td>' . $paid_installments . '</td>
+        <td>' . $pending_installments . '</td>
+        <td>' . $overdue_installments . '</td>
+        <td>' . number_format($total_amount, 2) . '</td>
+        <td>' . number_format($paid_amount, 2) . '</td>
+    </tr>';
+    
+    // Build summary
+    $summary = '<div class="col-md-3">
+        <div class="card bg-light">
+            <div class="card-body text-center">
+                <h5>' . __('Total Installments', 'somity-manager') . '</h5>
+                <h3>' . $total_installments . '</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h5>' . __('Paid', 'somity-manager') . '</h5>
+                <h3>' . $paid_installments . '</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body text-center">
+                <h5>' . __('Pending', 'somity-manager') . '</h5>
+                <h3>' . $pending_installments . '</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-danger text-white">
+            <div class="card-body text-center">
+                <h5>' . __('Overdue', 'somity-manager') . '</h5>
+                <h3>' . $overdue_installments . '</h3>
+            </div>
+        </div>
+    </div>';
+    
+    // Build CSV data
+    $csv_data = '"' . __('Date', 'somity-manager') . '","' . __('Total Installments', 'somity-manager') . '","' . __('Paid', 'somity-manager') . '","' . __('Pending', 'somity-manager') . '","' . __('Overdue', 'somity-manager') . '","' . __('Total Amount', 'somity-manager') . '","' . __('Paid Amount', 'somity-manager') . '"' . "\n";
+    $csv_data .= '"' . $start_date . ' - ' . $end_date . '","' . $total_installments . '","' . $paid_installments . '","' . $pending_installments . '","' . $overdue_installments . '","' . number_format($total_amount, 2) . '","' . number_format($paid_amount, 2) . '"' . "\n";
+    
+    return array(
+        'title' => $title,
+        'header' => $header,
+        'body' => $body,
+        'summary' => $summary,
+        'csv_data' => $csv_data,
+        'filename' => 'installment_summary_' . $start_date . '_to_' . $end_date . '.csv'
+    );
+}
+
+/**
+ * Generate overdue installments report
+ */
+function somity_generate_overdue_installments_report($start_date, $end_date) {
+    global $wpdb;
+    
+    $installments_table = $wpdb->prefix . 'somity_installments';
+    
+    // Get overdue installments
+    $overdue_installments = $wpdb->get_results($wpdb->prepare(
+        "SELECT i.*, u.display_name as member_name
+         FROM $installments_table i
+         LEFT JOIN {$wpdb->users} u ON i.member_id = u.ID
+         WHERE i.status = 'pending' AND i.due_date < CURDATE() AND DATE(i.due_date) BETWEEN %s AND %s
+         ORDER BY i.due_date ASC",
+        $start_date, $end_date
+    ));
+    
+    // Build report data
+    $title = sprintf(__('Overdue Installments Report (%s to %s)', 'somity-manager'), $start_date, $end_date);
+    
+    // Build table header
+    $header = '<tr>
+        <th>' . __('Member Name', 'somity-manager') . '</th>
+        <th>' . __('Member ID', 'somity-manager') . '</th>
+        <th>' . __('Amount', 'somity-manager') . '</th>
+        <th>' . __('Due Date', 'somity-manager') . '</th>
+        <th>' . __('Days Overdue', 'somity-manager') . '</th>
+    </tr>';
+    
+    // Build table body
+    $body = '';
+    $csv_data = '"' . __('Member Name', 'somity-manager') . '","' . __('Member ID', 'somity-manager') . '","' . __('Amount', 'somity-manager') . '","' . __('Due Date', 'somity-manager') . '","' . __('Days Overdue', 'somity-manager') . '"' . "\n";
+    
+    $total_overdue = 0;
+    
+    foreach ($overdue_installments as $installment) {
+        $due_date = new DateTime($installment->due_date);
+        $today = new DateTime();
+        $days_overdue = $today->diff($due_date)->format('%a');
+        
+        $body .= '<tr>
+            <td>' . esc_html($installment->member_name) . '</td>
+            <td>CSM-' . date('Y') . '-' . str_pad($installment->member_id, 3, '0', STR_PAD_LEFT) . '</td>
+            <td>' . number_format($installment->amount, 2) . '</td>
+            <td>' . date_i18n(get_option('date_format'), strtotime($installment->due_date)) . '</td>
+            <td>' . $days_overdue . '</td>
+        </tr>';
+        
+        $csv_data .= '"' . $installment->member_name . '","CSM-' . date('Y') . '-' . str_pad($installment->member_id, 3, '0', STR_PAD_LEFT) . '","' . number_format($installment->amount, 2) . '","' . date_i18n(get_option('date_format'), strtotime($installment->due_date)) . '","' . $days_overdue . '"' . "\n";
+        
+        $total_overdue += $installment->amount;
+    }
+    
+    // Build summary
+    $total_count = count($overdue_installments);
+    
+    $summary = '<div class="col-md-6">
+        <div class="card bg-danger text-white">
+            <div class="card-body text-center">
+                <h5>' . __('Total Overdue Installments', 'somity-manager') . '</h5>
+                <h3>' . $total_count . '</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card bg-warning text-white">
+            <div class="card-body text-center">
+                <h5>' . __('Total Overdue Amount', 'somity-manager') . '</h5>
+                <h3>' . number_format($total_overdue, 2) . '</h3>
+            </div>
+        </div>
+    </div>';
+    
+    return array(
+        'title' => $title,
+        'header' => $header,
+        'body' => $body,
+        'summary' => $summary,
+        'csv_data' => $csv_data,
+        'filename' => 'overdue_installments_' . $start_date . '_to_' . $end_date . '.csv'
+    );
 }
