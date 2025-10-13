@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Template Name: Installments
+ * Template Name: Installmentsjj
  */
 
 if (!is_user_logged_in() || !current_user_can('administrator')) {

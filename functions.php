@@ -442,6 +442,8 @@ function somity_custom_registration_handler() {
         
         // If no errors, create the user
         $user_id = wp_create_user($username, $password, $email);
+        $user = new WP_User( $user_id );
+        $user->set_role( 'subscriber' );
         
         if (is_wp_error($user_id)) {
             $errors->add('registerfail', sprintf(__('<strong>Error</strong>: Couldn&#8217;t register you&hellip; please contact the <a href="mailto:%s">site admin</a>!', 'somity-manager'), get_option('admin_email')));
@@ -582,3 +584,11 @@ function somity_create_payments_table() {
     dbDelta($sql);
 }
 add_action('init', 'somity_create_payments_table');
+
+// function user_role_assign(){
+//     $user_id = 4;
+//     $user = new WP_User( $user_id );
+// $user->set_role( 'subscriber' );
+// }
+
+// add_action('init','user_role_assign');

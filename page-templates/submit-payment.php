@@ -93,6 +93,16 @@ get_header();
                                 </div>
                             </div>
                         </div>
+
+                        <div class="error-message" id="errorMessage" style="display: none;">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-x-circle-fill text-danger me-3" style="font-size: 1.5rem;"></i>
+                                <div>
+                                    <h5 class="mb-1 text-danger"><?php _e('Payment not Submitted!!', 'somity-manager'); ?></h5>
+                                    <p class="mb-0 errortext"></p>
+                                </div>
+                            </div>
+                        </div>
                         
                         <!-- Debug Info -->
                         <div id="debugInfo" style="display: none; background: #f8f9fa; padding: 10px; margin-bottom: 15px; border-radius: 5px; font-size: 12px; max-height: 200px; overflow-y: auto;"></div>

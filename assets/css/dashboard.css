@@ -707,3 +707,11 @@
 .user-avatar img{
     width: 100%;
 }
+
+.status-badge.status-partial {
+    background-color: #fff3cd;
+    color: #856404;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.9em;
+}

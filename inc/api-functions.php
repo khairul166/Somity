@@ -131,42 +131,7 @@ function somity_get_member_payments($member_id, $limit = 10) {
     return $result;
 }
 
-// Get member upcoming installments
-function somity_get_member_upcoming_installments($member_id, $limit = 5) {
-    $args = array(
-        'post_type' => 'installment',
-        'post_status' => 'publish',
-        'posts_per_page' => $limit,
-        'meta_query' => array(
-            'relation' => 'AND',
-            array(
-                'key' => '_member_id',
-                'value' => $member_id,
-            ),
-            array(
-                'key' => '_due_date',
-                'value' => date('Y-m-d'),
-                'compare' => '>=',
-            ),
-        ),
-        'orderby' => 'meta_value',
-        'meta_key' => '_due_date',
-        'order' => 'ASC',
-    );
-    
-    $installments = get_posts($args);
-    $result = array();
-    
-    foreach ($installments as $installment) {
-        $result[] = (object) array(
-            'id' => $installment->ID,
-            'amount' => get_post_meta($installment->ID, '_amount', true),
-            'due_date' => get_post_meta($installment->ID, '_due_date', true),
-        );
-    }
-    
-    return $result;
-}
+
 
 // Get installment by ID
 function somity_get_installment($installment_id) {
@@ -362,7 +327,7 @@ function somity_ajax_submit_payment() {
     $payment_date = isset($_POST['payment_date']) ? sanitize_text_field($_POST['payment_date']) : '';
     $payment_method = isset($_POST['payment_method']) ? sanitize_text_field($_POST['payment_method']) : '';
     $payment_note = isset($_POST['payment_note']) ? sanitize_textarea_field($_POST['payment_note']) : '';
-    $installment_id = isset($_POST['installment_id']) ? intval($_POST['installment_id']) : 0;
+
     
     error_log('Sanitized data: amount=' . $amount . ', transaction_id=' . $transaction_id . ', payment_date=' . $payment_date);
     
@@ -433,7 +398,11 @@ function somity_ajax_submit_payment() {
     } else {
         error_log('No file uploaded');
     }
-    
+    $member_status = get_user_meta( $member_id, '_member_status', true );
+    if($member_status != 'approved'){
+        error_log('Member is not active: ' . $member_id);
+        wp_send_json_error(array('message' => __('Please Wait for active your account', 'somity-manager')));
+    }
     // Prepare data for insertion
     $data = array(
         'member_id' => $member_id,
@@ -457,27 +426,10 @@ function somity_ajax_submit_payment() {
         error_log('Error inserting payment into database: ' . $wpdb->last_error);
         wp_send_json_error(array('message' => __('Error saving payment record.', 'somity-manager')));
     }
-    
     $payment_id = $wpdb->insert_id;
     error_log('Payment record created with ID: ' . $payment_id);
     
-    // Update installment status if applicable
-    if ($installment_id) {
-        $installment_table = $wpdb->prefix . 'somity_installments';
-        $update_result = $wpdb->update(
-            $installment_table,
-            array('status' => 'paid', 'updated_at' => current_time('mysql')),
-            array('id' => $installment_id),
-            array('%s', '%s'),
-            array('%d')
-        );
-        
-        if ($update_result !== false) {
-            error_log('Installment status updated to paid');
-        } else {
-            error_log('Error updating installment status: ' . $wpdb->last_error);
-        }
-    }
+
     
     // Create activity record
     $activity_data = array(
@@ -503,91 +455,6 @@ function somity_ajax_submit_payment() {
     ));
 }
 
-// add_action('wp_ajax_approve_payment', 'somity_ajax_approve_payment');
-// function somity_ajax_approve_payment() {
-//     check_ajax_referer('somity-nonce', 'nonce');
-    
-//     if (!current_user_can('administrator')) {
-//         wp_send_json_error(array('message' => __('You do not have permission to approve payments.', 'somity-manager')));
-//     }
-    
-//     $payment_id = intval($_POST['payment_id']);
-//     $payment = get_post($payment_id);
-    
-//     if (!$payment || $payment->post_type !== 'payment') {
-//         wp_send_json_error(array('message' => __('Invalid payment ID.', 'somity-manager')));
-//     }
-    
-//     // Update payment status
-//     wp_set_post_terms($payment_id, 'approved', 'payment_status');
-    
-//     // Get payment details
-//     $amount = get_post_meta($payment_id, '_amount', true);
-//     $member_id = $payment->post_author;
-//     $member = get_user_by('id', $member_id);
-    
-//     // Create activity record
-//     $activity_data = array(
-//         'post_title' => 'Payment Approved',
-//         'post_content' => 'Payment of ' . $amount . ' by ' . $member->display_name . ' was approved',
-//         'post_status' => 'publish',
-//         'post_author' => get_current_user_id(),
-//         'post_type' => 'activity',
-//     );
-    
-//     $activity_id = wp_insert_post($activity_data);
-    
-//     if (!is_wp_error($activity_id)) {
-//         wp_set_post_terms($activity_id, 'payment', 'activity_type');
-//     }
-    
-//     wp_send_json_success(array('message' => __('Payment has been approved successfully.', 'somity-manager')));
-// }
-
-// add_action('wp_ajax_reject_payment', 'somity_ajax_reject_payment');
-// function somity_ajax_reject_payment() {
-//     check_ajax_referer('somity-nonce', 'nonce');
-    
-//     if (!current_user_can('administrator')) {
-//         wp_send_json_error(array('message' => __('You do not have permission to reject payments.', 'somity-manager')));
-//     }
-    
-//     $payment_id = intval($_POST['payment_id']);
-//     $reason = sanitize_textarea_field($_POST['reason']);
-//     $payment = get_post($payment_id);
-    
-//     if (!$payment || $payment->post_type !== 'payment') {
-//         wp_send_json_error(array('message' => __('Invalid payment ID.', 'somity-manager')));
-//     }
-    
-//     // Update payment status
-//     wp_set_post_terms($payment_id, 'rejected', 'payment_status');
-    
-//     // Save rejection reason
-//     update_post_meta($payment_id, '_rejection_reason', $reason);
-    
-//     // Get payment details
-//     $amount = get_post_meta($payment_id, '_amount', true);
-//     $member_id = $payment->post_author;
-//     $member = get_user_by('id', $member_id);
-    
-//     // Create activity record
-//     $activity_data = array(
-//         'post_title' => 'Payment Rejected',
-//         'post_content' => 'Payment of ' . $amount . ' by ' . $member->display_name . ' was rejected. Reason: ' . $reason,
-//         'post_status' => 'publish',
-//         'post_author' => get_current_user_id(),
-//         'post_type' => 'activity',
-//     );
-    
-//     $activity_id = wp_insert_post($activity_data);
-    
-//     if (!is_wp_error($activity_id)) {
-//         wp_set_post_terms($activity_id, 'payment', 'activity_type');
-//     }
-    
-//     wp_send_json_success(array('message' => __('Payment has been rejected successfully.', 'somity-manager')));
-// }
 
 add_action('wp_ajax_submit_contact_form', 'somity_ajax_submit_contact_form');
 add_action('wp_ajax_nopriv_submit_contact_form', 'somity_ajax_submit_contact_form');
@@ -624,102 +491,6 @@ function somity_ajax_submit_contact_form() {
 // AJAX handler for exporting payments
 add_action('wp_ajax_export_payments', 'somity_ajax_export_payments');
 
-// function somity_ajax_export_payments() {
-//     check_ajax_referer('somity-nonce', 'nonce');
-    
-//     if (!current_user_can('administrator')) {
-//         wp_die(__('You do not have permission to export payments.', 'somity-manager'));
-//     }
-    
-//     $filterValue = isset($_GET['filter']) ? sanitize_text_field($_GET['filter']) : 'all';
-//     $searchTerm = isset($_GET['search']) ? sanitize_text_field($_GET['search']) : '';
-//     $monthFilter = isset($_GET['month']) ? sanitize_text_field($_GET['month']) : 'all';
-    
-//     header('Content-Type: text/csv');
-//     header('Content-Disposition: attachment; filename="payments_export.csv"');
-    
-//     $output = fopen('php://output', 'w');
-    
-//     // Add CSV headers
-//     fputcsv($output, array(
-//         'ID',
-//         'Member',
-//         'Amount',
-//         'Transaction ID',
-//         'Payment Date',
-//         'Payment Method',
-//         'Status',
-//         'Note',
-//     ));
-    
-//     // Build query arguments
-//     $args = array(
-//         'post_type' => 'payment',
-//         'post_status' => 'publish',
-//         'posts_per_page' => -1,
-//         'orderby' => 'date',
-//         'order' => 'DESC',
-//     );
-    
-//     // Handle search filter
-//     if (!empty($searchTerm)) {
-//         $args['s'] = $searchTerm;
-//     }
-    
-//     // Handle status filter
-//     if ($filterValue !== 'all') {
-//         $args['tax_query'] = array(
-//             array(
-//                 'taxonomy' => 'payment_status',
-//                 'field' => 'slug',
-//                 'terms' => $filterValue,
-//             ),
-//         );
-//     }
-    
-//     // Handle month filter
-//     if ($monthFilter !== 'all') {
-//         $month = intval($monthFilter);
-//         $year = date('Y');
-        
-//         $args['meta_query'] = array(
-//             array(
-//                 'key' => '_payment_date',
-//                 'value' => $year . '-' . str_pad($month, 2, '0', STR_PAD_LEFT) . '%',
-//                 'compare' => 'LIKE',
-//             ),
-//         );
-//     }
-    
-//     $payments_query = new WP_Query($args);
-    
-//     // Add payment data
-//     if ($payments_query->have_posts()) {
-//         while ($payments_query->have_posts()) {
-//             $payments_query->the_post();
-//             $payment_id = get_the_ID();
-//             $member = get_user_by('id', get_the_author_meta('ID'));
-//             $status_terms = wp_get_post_terms($payment_id, 'payment_status');
-//             $status = !empty($status_terms) ? $status_terms[0]->name : 'Unknown';
-            
-//             fputcsv($output, array(
-//                 $payment_id,
-//                 $member->display_name,
-//                 get_post_meta($payment_id, '_amount', true),
-//                 get_post_meta($payment_id, '_transaction_id', true),
-//                 get_post_meta($payment_id, '_payment_date', true),
-//                 get_post_meta($payment_id, '_payment_method', true),
-//                 $status,
-//                 get_post_meta($payment_id, '_payment_note', true),
-//             ));
-//         }
-//     }
-    
-//     wp_reset_postdata();
-    
-//     fclose($output);
-//     exit;
-// }
 
 
 /**
@@ -1267,7 +1038,7 @@ function somity_get_installments_paginated($per_page = 10, $page = 1, $status = 
     }
     
     // Add order and pagination to the main query
-    $query .= " ORDER BY i.due_date DESC, i.id DESC";
+    $query .= " ORDER BY i.due_date ASC, i.id ASC";
     $query .= $wpdb->prepare(" LIMIT %d OFFSET %d", $per_page, $offset);
     
     // Get the results
@@ -1780,9 +1551,11 @@ function somity_get_payment_stats() {
  */
 function somity_update_payment_status($payment_id, $status) {
     global $wpdb;
-    
+
     $table_name = $wpdb->prefix . 'somity_payments';
-    
+    $installment_table = $wpdb->prefix . 'somity_installments';
+    $credits_table = $wpdb->prefix . 'somity_credits';
+
     // Get payment details
     $payment = $wpdb->get_row($wpdb->prepare(
         "SELECT p.*, u.display_name as member_name FROM $table_name p
@@ -1790,11 +1563,11 @@ function somity_update_payment_status($payment_id, $status) {
          WHERE p.id = %d",
         $payment_id
     ));
-    
+
     if (!$payment) {
         return false;
     }
-    
+
     // Update payment status
     $result = $wpdb->update(
         $table_name,
@@ -1806,38 +1579,100 @@ function somity_update_payment_status($payment_id, $status) {
         array('%s', '%s'),
         array('%d')
     );
-    
+
     if ($result === false) {
         return false;
     }
-    
-    // If payment is approved, update corresponding installment to paid
+
     if ($status === 'approved') {
-        // Find the earliest pending installment for this member
-        $installment_table = $wpdb->prefix . 'somity_installments';
-        $installment = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM $installment_table 
-             WHERE member_id = %d AND status = 'pending'
-             ORDER BY due_date ASC LIMIT 1",
-            $payment->member_id
-        ));
-        
+        $payment_installment_id = get_post_meta($payment_id, '_installment_id', true);
+
+        if ($payment_installment_id) {
+            $installment = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM $installment_table WHERE id = %d", $payment_installment_id
+            ));
+        } else {
+            $installment = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM $installment_table 
+                 WHERE member_id = %d AND status IN ('pending', 'partial')
+                 ORDER BY due_date ASC LIMIT 1",
+                $payment->member_id
+            ));
+        }
+
         if ($installment) {
-            // Update installment status to paid
+            $current_paid = floatval($installment->paid_amount);
+            $installment_total = floatval($installment->amount);
+            $payment_amount = floatval($payment->amount);
+
+            $new_paid = $current_paid + $payment_amount;
+            $remaining = $installment_total - $new_paid;
+
+            // Update current installment
             $wpdb->update(
                 $installment_table,
                 array(
-                    'status' => 'paid',
+                    'paid_amount' => min($new_paid, $installment_total),
+                    'remaining_balance' => max(0, $remaining),
+                    'status' => $remaining <= 0 ? 'paid' : 'partial',
                     'updated_at' => current_time('mysql'),
                 ),
                 array('id' => $installment->id),
-                array('%s', '%s'),
+                array('%f', '%f', '%s', '%s'),
                 array('%d')
             );
+
+            // Handle overpayment
+            if ($remaining < 0) {
+                $overpayment = abs($remaining);
+                $method = get_option('somity_overpayment_handling')['method'] ?? 'next_installment';
+
+                if ($method === 'next_installment') {
+                    $next_installment = $wpdb->get_row($wpdb->prepare(
+                        "SELECT * FROM $installment_table 
+                         WHERE member_id = %d AND status IN ('pending', 'partial')
+                         AND id != %d
+                         ORDER BY due_date ASC LIMIT 1",
+                        $payment->member_id, $installment->id
+                    ));
+
+                    if ($next_installment) {
+                        $next_paid = floatval($next_installment->paid_amount);
+                        $next_total = floatval($next_installment->amount);
+                        $next_remaining = $next_total - ($next_paid + $overpayment);
+
+                        $wpdb->update(
+                            $installment_table,
+                            array(
+                                'paid_amount' => $next_paid + $overpayment,
+                                'remaining_balance' => $next_remaining,
+                                'status' => $next_remaining <= 0 ? 'paid' : 'partial',
+                                'updated_at' => current_time('mysql'),
+                            ),
+                            array('id' => $next_installment->id),
+                            array('%f', '%f', '%s', '%s'),
+                            array('%d')
+                        );
+                    } else {
+                        error_log("Overpayment of {$overpayment} for member {$payment->member_id} with no next installment.");
+                    }
+                } elseif ($method === 'credit_balance') {
+                    $wpdb->insert(
+                        $credits_table,
+                        array(
+                            'member_id' => $payment->member_id,
+                            'amount' => $overpayment,
+                            'payment_id' => $payment_id,
+                            'created_at' => current_time('mysql'),
+                        ),
+                        array('%d', '%f', '%d', '%s')
+                    );
+                }
+            }
         }
     }
-    
-    // Create activity record
+
+    // Activity log (unchanged)
     $activity_data = array(
         'post_title' => 'Payment ' . ucfirst($status),
         'post_content' => 'Payment of ' . $payment->amount . ' by ' . $payment->member_name . ' was ' . $status,
@@ -1845,17 +1680,17 @@ function somity_update_payment_status($payment_id, $status) {
         'post_author' => get_current_user_id(),
         'post_type' => 'activity',
     );
-    
+
     $activity_id = wp_insert_post($activity_data);
-    
+
     if (!is_wp_error($activity_id)) {
         wp_set_post_terms($activity_id, 'payment', 'activity_type');
     }
-    
+
     return true;
 }
 
-//AJAX handlers for payments
+
 add_action('wp_ajax_approve_payment', 'somity_ajax_approve_payment');
 function somity_ajax_approve_payment() {
     check_ajax_referer('somity-nonce', 'nonce');
@@ -1877,6 +1712,48 @@ function somity_ajax_approve_payment() {
     } else {
         wp_send_json_error(array('message' => __('Error approving payment.', 'somity-manager')));
     }
+}
+
+/**
+ * Apply payment to installment
+ */
+function somity_apply_payment_to_installment($payment_id, $installment_id) {
+    global $wpdb;
+    
+    $payments_table = $wpdb->prefix . 'somity_payments';
+    $installments_table = $wpdb->prefix . 'somity_installments';
+    
+    // Get payment details
+    $payment = $wpdb->get_row($wpdb->prepare(
+        "SELECT amount FROM $payments_table WHERE id = %d", $payment_id
+    ));
+    
+    // Get installment details
+    $installment = $wpdb->get_row($wpdb->prepare(
+        "SELECT amount, paid_amount FROM $installments_table WHERE id = %d", $installment_id
+    ));
+    
+    if (!$payment || !$installment) {
+        return false;
+    }
+    
+    // Calculate new paid amount
+    $new_paid_amount = floatval($installment->paid_amount) + floatval($payment->amount);
+    
+    // Update installment
+    $result = $wpdb->update(
+        $installments_table,
+        array(
+            'paid_amount' => $new_paid_amount,
+            'status' => ($new_paid_amount >= floatval($installment->amount)) ? 'paid' : 'pending',
+            'updated_at' => current_time('mysql'),
+        ),
+        array('id' => $installment_id),
+        array('%f', '%s', '%s'),
+        array('%d')
+    );
+    
+    return $result !== false;
 }
 
 add_action('wp_ajax_reject_payment', 'somity_ajax_reject_payment');
@@ -2556,7 +2433,7 @@ function somity_get_member_payments_paginated($member_id, $per_page = 10, $page 
     }
     
     // Add order and pagination to the main query
-    $query .= " ORDER BY payment_date DESC";
+    $query .= " ORDER BY payment_date ASC";
     $query .= " LIMIT %d OFFSET %d";
     $prepare_values[] = $per_page;
     $prepare_values[] = $offset;
@@ -2840,4 +2717,122 @@ function somity_get_member_recent_payments($member_id, $limit = 5) {
          LIMIT %d",
         $member_id, $limit
     ));
+}
+
+
+/**
+ * Get member's pending installments with details
+ */
+function somity_get_member_pending_installments_with_details($member_id) {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'somity_installments';
+    
+    return $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM $table_name 
+         WHERE member_id = %d AND status = 'pending' 
+         ORDER BY due_date ASC",
+        $member_id
+    ));
+}
+
+/**
+ * Get member's upcoming installments (including partial)
+ */
+function somity_get_member_upcoming_installments($member_id, $limit = 5) {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'somity_installments';
+    
+    return $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM $table_name 
+        WHERE member_id = %d 
+        AND status IN (%s, %s)
+        ORDER BY 
+        CASE 
+            WHEN status = 'partial' THEN 0 
+            ELSE 1 
+        END,
+        due_date ASC 
+        LIMIT %d",
+        $member_id, 'pending', 'partial', $limit
+    ));
+}
+
+/**
+ * Add custom columns to somity_installments table
+ */
+function somity_add_installment_columns() {
+    global $wpdb;
+
+    $table_name = $wpdb->prefix . 'somity_installments';
+    $column_name1 = 'paid_amount';
+    $column_name2 = 'remaining_balance';
+
+    // Check if the columns already exist
+    $check_column1 = $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+         WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+        DB_NAME,
+        $table_name,
+        $column_name1
+    ));
+
+    $check_column2 = $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+         WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+        DB_NAME,
+        $table_name,
+        $column_name2
+    ));
+
+    // Add paid_amount column if it doesn't exist
+    if (empty($check_column1)) {
+        $wpdb->query("ALTER TABLE $table_name ADD COLUMN paid_amount FLOAT DEFAULT 0");
+    }
+
+    // Add remaining_balance column if it doesn't exist
+    if (empty($check_column2)) {
+        $wpdb->query("ALTER TABLE $table_name ADD COLUMN remaining_balance FLOAT DEFAULT 0");
+    }
+}
+add_action('after_theme_switch', 'somity_add_installment_columns');
+
+function somity_create_credits_table() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'somity_credits';
+    $charset_collate = $wpdb->get_charset_collate();
+
+    $sql = "CREATE TABLE $table_name (
+        id INT(11) NOT NULL AUTO_INCREMENT,
+        member_id INT(11) NOT NULL,
+        amount FLOAT NOT NULL,
+        payment_id INT(11) NULL,
+        created_at DATETIME NOT NULL,
+        PRIMARY KEY (id)
+    ) $charset_collate;";
+
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    dbDelta($sql);
+}
+add_action('init', 'somity_create_credits_table');
+
+
+function somity_get_member_credit_balance($member_id) {
+    global $wpdb;
+    $table = $wpdb->prefix . 'somity_credits';
+    $result = $wpdb->get_var($wpdb->prepare(
+        "SELECT SUM(amount) FROM $table WHERE member_id = %d", $member_id
+    ));
+    return floatval($result);
+}
+
+/**
+ * Get total credit balance across all members
+ */
+function somity_get_total_credit_balance() {
+    global $wpdb;
+    $table = $wpdb->prefix . 'somity_credits';
+    $result = $wpdb->get_var("SELECT SUM(amount) FROM $table");
+    return $result ? floatval($result) : 0;
 }

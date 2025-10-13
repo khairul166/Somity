@@ -504,6 +504,16 @@ footer {
     margin-bottom: 20px;
 }
 
+/* Success Message */
+.error-message {
+    display: none;
+    background-color: rgba(167, 40, 51, 0.1);
+    border-left: 4px solid #af1c1c;
+    padding: 15px;
+    border-radius: 0 8px 8px 0;
+    margin-bottom: 20px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .payment-summary {

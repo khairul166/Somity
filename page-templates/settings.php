@@ -15,18 +15,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_settings'])) {
         wp_die(__('Security check failed.', 'somity-manager'));
     }
     
-    // Save settings
-    $settings = array(
-        'monthly_installment_amount' => floatval($_POST['monthly_installment_amount']),
-        'late_payment_fee' => floatval($_POST['late_payment_fee']),
-        'payment_methods' => array_map('sanitize_text_field', $_POST['payment_methods']),
-        'currency_symbol' => sanitize_text_field($_POST['currency_symbol']),
-        'currency_position' => sanitize_text_field($_POST['currency_position']),
-        'admin_email' => sanitize_email($_POST['admin_email']),
-        'auto_approve_payments' => isset($_POST['auto_approve_payments']) ? 1 : 0,
-        'notify_admin_on_payment' => isset($_POST['notify_admin_on_payment']) ? 1 : 0,
-        'notify_member_on_approval' => isset($_POST['notify_member_on_approval']) ? 1 : 0,
-    );
+// Save settings
+ $settings = array(
+    'monthly_installment_amount' => floatval($_POST['monthly_installment_amount']),
+    'late_payment_fee' => floatval($_POST['late_payment_fee']),
+    'payment_methods' => array_map('sanitize_text_field', $_POST['payment_methods']),
+    'currency_symbol' => sanitize_text_field($_POST['currency_symbol']),
+    'currency_position' => sanitize_text_field($_POST['currency_position']),
+    'admin_email' => sanitize_email($_POST['admin_email']),
+    'auto_approve_payments' => isset($_POST['auto_approve_payments']) ? 1 : 0,
+    'notify_admin_on_payment' => isset($_POST['notify_admin_on_payment']) ? 1 : 0,
+    'notify_member_on_approval' => isset($_POST['notify_member_on_approval']) ? 1 : 0,
+    'overpayment_handling' => sanitize_text_field($_POST['overpayment_handling']),
+);
     
     // Save each setting individually
     foreach ($settings as $key => $value) {
@@ -48,6 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_settings'])) {
     'auto_approve_payments' => get_option('somity_auto_approve_payments', 0),
     'notify_admin_on_payment' => get_option('somity_notify_admin_on_payment', 1),
     'notify_member_on_approval' => get_option('somity_notify_member_on_approval', 1),
+    'overpayment_handling' => get_option('somity_overpayment_handling', 'next_installment'),
 );
 
 get_header();
@@ -137,9 +139,26 @@ get_header();
                                 </div>
                             </div>
                             
-                            <div class="mb-3">
-                                <label for="admin_email" class="form-label"><?php _e('Admin Email', 'somity-manager'); ?></label>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="admin_email" class="form-label"><?php _e('Admin Email', 'somity-manager'); ?></label>
                                 <input type="email" class="form-control" id="admin_email" name="admin_email" value="<?php echo esc_attr($current_settings['admin_email']); ?>" required>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="overpayment_handling" class="form-label"><?php _e('How to handle overpayments?', 'somity-manager'); ?></label>
+                                    <select class="form-select" id="overpayment_handling" name="overpayment_handling" required>
+                                        <option value="next_installment" <?php selected($current_settings['overpayment_handling'], 'next_installment'); ?>>
+                                            <?php _e('Apply to next installment', 'somity-manager'); ?>
+                                        </option>
+                                        <option value="credit_balance" <?php selected($current_settings['overpayment_handling'], 'credit_balance'); ?>>
+                                            <?php _e('Store as credit balance', 'somity-manager'); ?>
+                                        </option>
+                                    </select>
+                                    <div class="form-text">
+                                        <?php _e('Choose how to handle payments that exceed the installment amount.', 'somity-manager'); ?>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -178,6 +197,16 @@ get_header();
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Overpayment Settings -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><?php _e('Overpayment Settings', 'somity-manager'); ?></h5>
+                        </div>
+                        <div class="card-body">
+
                         </div>
                     </div>
                     

@@ -199,56 +199,65 @@ get_header();
                                     $search = isset($_GET['search']) ? sanitize_text_field($_GET['search']) : '';
                                     $year = isset($_GET['year']) ? sanitize_text_field($_GET['year']) : 'all';
                                     
-                                    // Get paginated installments
-                                    $installments_data = somity_get_member_installments_paginated($member_id, 10, $paged, $status, $search, $year);
-                                    
-                                    if ($installments_data['items']) {
-                                        foreach ($installments_data['items'] as $installment) {
-                                            // Get status icon
-                                            $status_icon = '';
-                                            $status_class = '';
-                                            
-                                            switch ($installment->status) {
-                                                case 'pending':
-                                                    $status_icon = '<i class="bi bi-clock-fill"></i>';
-                                                    $status_class = '';
-                                                    
-                                                    // Check if installment is overdue
-                                                    if (strtotime($installment->due_date) < time()) {
-                                                        $status_class = 'overdue';
-                                                    }
-                                                    break;
-                                                case 'paid':
-                                                    $status_icon = '<i class="bi bi-check-circle-fill"></i>';
-                                                    break;
-                                            }
-                                            ?>
-                                            <tr>
-                                                <td><?php echo date_i18n(get_option('date_format'), strtotime($installment->due_date)); ?></td>
-                                                <td><?php echo esc_html($current_settings['currency_symbol']); ?><?php echo number_format($installment->amount, 2); ?></td>
-                                                <td>
-                                                    <span class="status-badge status-<?php echo esc_attr($installment->status); ?> <?php echo esc_attr($status_class); ?>">
-                                                        <?php echo esc_html(ucfirst($installment->status)); ?> <?php echo $status_icon; ?>
-                                                        <?php if ($status_class === 'overdue') : ?>
-                                                            <i class="bi bi-exclamation-triangle-fill"></i> <?php _e('Overdue', 'somity-manager'); ?>
-                                                        <?php endif; ?>
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <?php if ($installment->status === 'pending') : ?>
-                                                        <a href="<?php echo esc_url(home_url('/submit-payment/?installment_id=' . $installment->id)); ?>" class="btn btn-sm btn-primary">
-                                                            <i class="bi bi-cash-stack"></i> <?php _e('Pay Now', 'somity-manager'); ?>
-                                                        </a>
-                                                    <?php else : ?>
-                                                        <button class="btn btn-sm btn-outline-secondary" disabled><?php _e('Paid', 'somity-manager'); ?></button>
-                                                    <?php endif; ?>
-                                                </td>
-                                            </tr>
-                                            <?php
-                                        }
-                                    } else {
-                                        echo '<tr><td colspan="4" class="text-center">' . __('No installments found.', 'somity-manager') . '</td></tr>';
-                                    }
+// Get paginated installments
+ $installments_data = somity_get_member_installments_paginated($member_id, 10, $paged, $status, $search, $year);
+
+if ($installments_data['items']) {
+    foreach ($installments_data['items'] as $installment) {
+        // Get status icon
+        $status_icon = '';
+        $status_class = '';
+        $remaining_text = '';
+
+        switch ($installment->status) {
+            case 'pending':
+                $status_icon = '<i class="bi bi-clock-fill"></i>';
+                $status_class = '';
+
+                // Check if installment is overdue
+                if (strtotime($installment->due_date) < time()) {
+                    $status_class = 'overdue';
+                }
+                break;
+
+            case 'partial':
+                $status_icon = '<i class="bi bi-hourglass-split"></i>';
+                $remaining = isset($installment->remaining_balance) ? floatval($installment->remaining_balance) : 0;
+                $remaining_text = ' (' . esc_html($current_settings['currency_symbol']) . number_format($remaining, 2) . ' ' . __('remaining', 'somity-manager') . ')';
+                break;
+
+            case 'paid':
+                $status_icon = '<i class="bi bi-check-circle-fill"></i>';
+                break;
+        }
+        ?>
+        <tr>
+            <td><?php echo date_i18n(get_option('date_format'), strtotime($installment->due_date)); ?></td>
+            <td><?php echo esc_html($current_settings['currency_symbol']); ?><?php echo number_format($installment->amount, 2); ?></td>
+            <td>
+                <span class="status-badge status-<?php echo esc_attr($installment->status); ?> <?php echo esc_attr($status_class); ?>">
+                    <?php echo esc_html(ucfirst($installment->status)); ?> <?php echo $status_icon; ?>
+                    <?php echo $remaining_text; ?>
+                    <?php if ($status_class === 'overdue') : ?>
+                        <i class="bi bi-exclamation-triangle-fill"></i> <?php _e('Overdue', 'somity-manager'); ?>
+                    <?php endif; ?>
+                </span>
+            </td>
+            <td>
+                <?php if (in_array($installment->status, ['pending', 'partial'])) : ?>
+                    <a href="<?php echo esc_url(home_url('/submit-payment/?installment_id=' . $installment->id)); ?>" class="btn btn-sm btn-primary">
+                        <i class="bi bi-cash-stack"></i> <?php _e('Pay Now', 'somity-manager'); ?>
+                    </a>
+                <?php else : ?>
+                    <button class="btn btn-sm btn-outline-secondary" disabled><?php _e('Paid', 'somity-manager'); ?></button>
+                <?php endif; ?>
+            </td>
+        </tr>
+        <?php
+    }
+} else {
+    echo '<tr><td colspan="4" class="text-center">' . __('No installments found.', 'somity-manager') . '</td></tr>';
+}
                                     ?>
                                 </tbody>
                             </table>

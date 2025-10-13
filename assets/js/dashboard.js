@@ -106,6 +106,8 @@
 
             var $form = $(this);
             var $message = $('#successMessage');
+            var $errorMessage = $('#errorMessage');
+            var $errortext = $errorMessage.find('.errortext');
             var formData = new FormData($form[0]);
             const submitButton = $form.find('button[type="submit"]');
 
@@ -122,7 +124,7 @@
 
             // Show loading state
             submitButton.prop('disabled', true);
-            submitButton.html('<i class="bi bi-spinner-border spin"></i> Submitting...');
+            submitButton.html('<i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i> Submitting...');
 
             $.ajax({
                 type: 'POST',
@@ -139,6 +141,7 @@
                     submitButton.html('Submit Payment');
 
                     if (response.success) {
+                        $errorMessage.hide();
                         $message.show();
 
                         // Scroll to success message
@@ -151,7 +154,14 @@
                         $('#fileLabel').text('Click to upload or drag and drop');
                         $('#imagePreview').hide();
                     } else {
-                        alert(response.data.message);
+                        $message.hide();
+                        $errortext.text(response.data.message || 'An error occurred. Please try again.');
+                        $errorMessage.show();
+
+                        // Scroll to error message
+                        $('html, body').animate({
+                            scrollTop: $errorMessage.offset().top - 100
+                        }, 500);
                     }
                 },
                 error: function (xhr, status, error) {
