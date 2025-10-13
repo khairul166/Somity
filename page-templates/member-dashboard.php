@@ -16,9 +16,24 @@ if (!current_user_can('subscriber')) {
 
  $current_user = wp_get_current_user();
  $member_id = $current_user->ID;
+
 // Get user meta
  $profile_picture_id = get_user_meta($member_id, 'profile_picture', true);
  $profile_picture_url = $profile_picture_id ? wp_get_attachment_url($profile_picture_id) : '';
+
+ // Get current settings
+ $current_settings = array(
+    'monthly_installment_amount' => get_option('somity_monthly_installment_amount', 300.00),
+    'late_payment_fee' => get_option('somity_late_payment_fee', 10.00),
+    'payment_methods' => get_option('somity_payment_methods', array('bank_transfer', 'mobile_banking')),
+    'currency_symbol' => get_option('somity_currency_symbol', '$'),
+    'currency_position' => get_option('somity_currency_position', 'before'),
+    'admin_email' => get_option('somity_admin_email', get_option('admin_email')),
+    'auto_approve_payments' => get_option('somity_auto_approve_payments', 0),
+    'notify_admin_on_payment' => get_option('somity_notify_admin_on_payment', 1),
+    'notify_member_on_approval' => get_option('somity_notify_member_on_approval', 1),
+);
+
 
 get_header();
 ?>
@@ -80,7 +95,7 @@ get_header();
                             <div class="stats-icon">
                                 <i class="bi bi-exclamation-triangle-fill"></i>
                             </div>
-                            <div class="stats-number">$<?php echo number_format(somity_get_member_outstanding_balance($member_id), 2); ?></div>
+                            <div class="stats-number"><?php echo esc_html($current_settings['currency_symbol']); ?><?php echo number_format(somity_get_member_outstanding_balance($member_id), 2); ?></div>
                             <div class="stats-label"><?php _e('Outstanding Balance', 'somity-manager'); ?></div>
                         </div>
                     </div>
@@ -89,7 +104,7 @@ get_header();
                             <div class="stats-icon">
                                 <i class="bi bi-check-circle-fill"></i>
                             </div>
-                            <div class="stats-number">$<?php echo number_format(somity_get_member_total_paid($member_id), 2); ?></div>
+                            <div class="stats-number"><?php echo esc_html($current_settings['currency_symbol']); ?><?php echo number_format(somity_get_member_total_paid($member_id), 2); ?></div>
                             <div class="stats-label"><?php _e('Total Paid', 'somity-manager'); ?></div>
                         </div>
                     </div>
@@ -127,8 +142,11 @@ get_header();
                                     $payments = somity_get_member_recent_payments($member_id, 5);
                                     if ($payments) {
                                         foreach ($payments as $payment) {
+                                            // Check if status property exists
+                                            $payment_status = isset($payment->status) ? $payment->status : 'unknown';
+                                            
                                             $status_icon = '';
-                                            switch ($payment->status) {
+                                            switch ($payment_status) {
                                                 case 'pending':
                                                     $status_icon = '<i class="bi bi-clock-fill"></i>';
                                                     break;
@@ -138,15 +156,18 @@ get_header();
                                                 case 'rejected':
                                                     $status_icon = '<i class="bi bi-x-circle-fill"></i>';
                                                     break;
+                                                default:
+                                                    $status_icon = '<i class="bi bi-question-circle-fill"></i>';
+                                                    break;
                                             }
                                             ?>
                                             <tr>
                                                 <td><?php echo date_i18n(get_option('date_format'), strtotime($payment->payment_date)); ?></td>
-                                                <td>$<?php echo number_format($payment->amount, 2); ?></td>
+                                                <td><?php echo esc_html($current_settings['currency_symbol']); ?><?php echo number_format($payment->amount, 2); ?></td>
                                                 <td><?php echo esc_html($payment->transaction_id); ?></td>
                                                 <td>
-                                                    <span class="status-badge status-<?php echo esc_attr($payment->status); ?>">
-                                                        <?php echo esc_html(ucfirst($payment->status)); ?> <?php echo $status_icon; ?>
+                                                    <span class="status-badge status-<?php echo esc_attr($payment_status); ?>">
+                                                        <?php echo esc_html(ucfirst($payment_status)); ?> <?php echo $status_icon; ?>
                                                     </span>
                                                 </td>
                                                 <td>
@@ -189,11 +210,14 @@ get_header();
                                     $installments = somity_get_member_upcoming_installments($member_id, 5);
                                     if ($installments) {
                                         foreach ($installments as $installment) {
+                                            // Check if status property exists
+                                            $installment_status = isset($installment->status) ? $installment->status : 'unknown';
+                                            
                                             // Get status icon
                                             $status_icon = '';
                                             $status_class = '';
                                             
-                                            switch ($installment->status) {
+                                            switch ($installment_status) {
                                                 case 'pending':
                                                     $status_icon = '<i class="bi bi-clock-fill"></i>';
                                                     $status_class = '';
@@ -206,21 +230,24 @@ get_header();
                                                 case 'paid':
                                                     $status_icon = '<i class="bi bi-check-circle-fill"></i>';
                                                     break;
+                                                default:
+                                                    $status_icon = '<i class="bi bi-question-circle-fill"></i>';
+                                                    break;
                                             }
                                             ?>
                                             <tr>
                                                 <td><?php echo date_i18n(get_option('date_format'), strtotime($installment->due_date)); ?></td>
-                                                <td>$<?php echo number_format($installment->amount, 2); ?></td>
+                                                <td><?php echo esc_html($current_settings['currency_symbol']); ?><?php echo number_format($installment->amount, 2); ?></td>
                                                 <td>
-                                                    <span class="status-badge status-<?php echo esc_attr($installment->status); ?> <?php echo esc_attr($status_class); ?>">
-                                                        <?php echo esc_html(ucfirst($installment->status)); ?> <?php echo $status_icon; ?>
+                                                    <span class="status-badge status-<?php echo esc_attr($installment_status); ?> <?php echo esc_attr($status_class); ?>">
+                                                        <?php echo esc_html(ucfirst($installment_status)); ?> <?php echo $status_icon; ?>
                                                         <?php if ($status_class === 'overdue') : ?>
                                                             <i class="bi bi-exclamation-triangle-fill"></i> <?php _e('Overdue', 'somity-manager'); ?>
                                                         <?php endif; ?>
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    <?php if ($installment->status === 'pending') : ?>
+                                                    <?php if ($installment_status === 'pending') : ?>
                                                         <a href="<?php echo esc_url(home_url('/submit-payment/?installment_id=' . $installment->id)); ?>" class="btn btn-sm btn-primary">
                                                             <i class="bi bi-cash-stack"></i> <?php _e('Pay Now', 'somity-manager'); ?>
                                                         </a>

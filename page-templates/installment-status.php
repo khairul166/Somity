@@ -19,6 +19,18 @@ if (!current_user_can('subscriber')) {
 // Get user meta
  $profile_picture_id = get_user_meta($member_id, 'profile_picture', true);
  $profile_picture_url = $profile_picture_id ? wp_get_attachment_url($profile_picture_id) : '';
+   // Get current settings
+ $current_settings = array(
+    'monthly_installment_amount' => get_option('somity_monthly_installment_amount', 300.00),
+    'late_payment_fee' => get_option('somity_late_payment_fee', 10.00),
+    'payment_methods' => get_option('somity_payment_methods', array('bank_transfer', 'mobile_banking')),
+    'currency_symbol' => get_option('somity_currency_symbol', '$'),
+    'currency_position' => get_option('somity_currency_position', 'before'),
+    'admin_email' => get_option('somity_admin_email', get_option('admin_email')),
+    'auto_approve_payments' => get_option('somity_auto_approve_payments', 0),
+    'notify_admin_on_payment' => get_option('somity_notify_admin_on_payment', 1),
+    'notify_member_on_approval' => get_option('somity_notify_member_on_approval', 1),
+);
 get_header();
 ?>
 
@@ -110,7 +122,7 @@ get_header();
                     <div class="card-body">
                         <div class="row align-items-center">
                             <div class="col-md-6">
-                                <h3 class="mb-0">$<?php echo number_format(somity_get_member_outstanding_balance($member_id), 2); ?></h3>
+                                <h3 class="mb-0"><?php echo esc_html($current_settings['currency_symbol']); ?><?php echo number_format(somity_get_member_outstanding_balance($member_id), 2); ?></h3>
                                 <p class="text-muted mb-0"><?php _e('Total amount due for pending installments', 'somity-manager'); ?></p>
                             </div>
                             <div class="col-md-6 text-end">
@@ -213,7 +225,7 @@ get_header();
                                             ?>
                                             <tr>
                                                 <td><?php echo date_i18n(get_option('date_format'), strtotime($installment->due_date)); ?></td>
-                                                <td>$<?php echo number_format($installment->amount, 2); ?></td>
+                                                <td><?php echo esc_html($current_settings['currency_symbol']); ?><?php echo number_format($installment->amount, 2); ?></td>
                                                 <td>
                                                     <span class="status-badge status-<?php echo esc_attr($installment->status); ?> <?php echo esc_attr($status_class); ?>">
                                                         <?php echo esc_html(ucfirst($installment->status)); ?> <?php echo $status_icon; ?>

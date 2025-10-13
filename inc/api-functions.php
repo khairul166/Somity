@@ -726,26 +726,21 @@ add_action('wp_ajax_export_payments', 'somity_ajax_export_payments');
  * Get member's monthly installment amount
  */
 function somity_get_member_monthly_installment($member_id) {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'somity_installments';
+    
     // Get the most recent installment for the member
-    $args = array(
-        'post_type' => 'installment',
-        'post_status' => 'publish',
-        'posts_per_page' => 1,
-        'meta_query' => array(
-            array(
-                'key' => '_member_id',
-                'value' => $member_id,
-            ),
-        ),
-        'orderby' => 'meta_value',
-        'meta_key' => '_due_date',
-        'order' => 'DESC',
-    );
+    $installment = $wpdb->get_row($wpdb->prepare(
+        "SELECT amount FROM $table_name 
+         WHERE member_id = %d 
+         ORDER BY due_date DESC 
+         LIMIT 1",
+        $member_id
+    ));
     
-    $installments = get_posts($args);
-    
-    if ($installments) {
-        return floatval(get_post_meta($installments[0]->ID, '_amount', true));
+    if ($installment) {
+        return floatval($installment->amount);
     }
     
     // Default monthly installment if no installments found
@@ -756,63 +751,36 @@ function somity_get_member_monthly_installment($member_id) {
  * Get member's outstanding balance
  */
 function somity_get_member_outstanding_balance($member_id) {
-    // Get all installments for the member
-    $args = array(
-        'post_type' => 'installment',
-        'post_status' => 'publish',
-        'posts_per_page' => -1,
-        'meta_query' => array(
-            array(
-                'key' => '_member_id',
-                'value' => $member_id,
-            ),
-        ),
-        'tax_query' => array(
-            array(
-                'taxonomy' => 'installment_status',
-                'field' => 'slug',
-                'terms' => 'pending',
-            ),
-        ),
-    );
+    global $wpdb;
     
-    $installments = get_posts($args);
-    $outstanding_balance = 0;
+    $table_name = $wpdb->prefix . 'somity_installments';
     
-    foreach ($installments as $installment) {
-        $outstanding_balance += floatval(get_post_meta($installment->ID, '_amount', true));
-    }
+    // Get all pending installments for the member
+    $result = $wpdb->get_var($wpdb->prepare(
+        "SELECT SUM(amount) FROM $table_name 
+         WHERE member_id = %d AND status = 'pending'",
+        $member_id
+    ));
     
-    return $outstanding_balance;
+    return $result ? floatval($result) : 0;
 }
 
 /**
  * Get member's total paid amount
  */
 function somity_get_member_total_paid($member_id) {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'somity_payments';
+    
     // Get all approved payments for the member
-    $args = array(
-        'post_type' => 'payment',
-        'post_status' => 'publish',
-        'posts_per_page' => -1,
-        'author' => $member_id,
-        'tax_query' => array(
-            array(
-                'taxonomy' => 'payment_status',
-                'field' => 'slug',
-                'terms' => 'approved',
-            ),
-        ),
-    );
+    $result = $wpdb->get_var($wpdb->prepare(
+        "SELECT SUM(amount) FROM $table_name 
+         WHERE member_id = %d AND status = 'approved'",
+        $member_id
+    ));
     
-    $payments = get_posts($args);
-    $total_paid = 0;
-    
-    foreach ($payments as $payment) {
-        $total_paid += floatval(get_post_meta($payment->ID, '_amount', true));
-    }
-    
-    return $total_paid;
+    return $result ? floatval($result) : 0;
 }
 
 
@@ -2855,4 +2823,21 @@ function somity_ajax_change_member_password() {
     
     // Send success response
     wp_send_json_success(array('message' => __('Password changed successfully.', 'somity-manager')));
+}
+
+/**
+ * Get member's recent payments
+ */
+function somity_get_member_recent_payments($member_id, $limit = 5) {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'somity_payments';
+    
+    return $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM $table_name 
+         WHERE member_id = %d 
+         ORDER BY payment_date DESC 
+         LIMIT %d",
+        $member_id, $limit
+    ));
 }

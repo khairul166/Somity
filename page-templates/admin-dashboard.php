@@ -21,6 +21,8 @@ if (!is_user_logged_in() || !current_user_can('administrator')) {
     'notify_member_on_approval' => get_option('somity_notify_member_on_approval', 1),
 );
 
+
+
 get_header();
 
 

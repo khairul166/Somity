@@ -20,6 +20,19 @@ if (!current_user_can('subscriber')) {
  $profile_picture_id = get_user_meta($member_id, 'profile_picture', true);
  $profile_picture_url = $profile_picture_id ? wp_get_attachment_url($profile_picture_id) : '';
 
+  // Get current settings
+ $current_settings = array(
+    'monthly_installment_amount' => get_option('somity_monthly_installment_amount', 300.00),
+    'late_payment_fee' => get_option('somity_late_payment_fee', 10.00),
+    'payment_methods' => get_option('somity_payment_methods', array('bank_transfer', 'mobile_banking')),
+    'currency_symbol' => get_option('somity_currency_symbol', '$'),
+    'currency_position' => get_option('somity_currency_position', 'before'),
+    'admin_email' => get_option('somity_admin_email', get_option('admin_email')),
+    'auto_approve_payments' => get_option('somity_auto_approve_payments', 0),
+    'notify_admin_on_payment' => get_option('somity_notify_admin_on_payment', 1),
+    'notify_member_on_approval' => get_option('somity_notify_member_on_approval', 1),
+);
+
 get_header();
 ?>
 
@@ -70,7 +83,7 @@ get_header();
                             <div class="stats-icon">
                                 <i class="bi bi-cash-stack"></i>
                             </div>
-                            <div class="stats-number">$<?php echo number_format(somity_get_member_total_paid($member_id), 2); ?></div>
+                            <div class="stats-number"><?php echo esc_html($current_settings['currency_symbol']); ?><?php echo number_format(somity_get_member_total_paid($member_id), 2); ?></div>
                             <div class="stats-label"><?php _e('Total Paid', 'somity-manager'); ?></div>
                         </div>
                     </div>
@@ -183,7 +196,7 @@ get_header();
                                             ?>
                                             <tr>
                                                 <td><?php echo date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($payment->payment_date)); ?></td>
-                                                <td>$<?php echo number_format($payment->amount, 2); ?></td>
+                                                <td><?php echo esc_html($current_settings['currency_symbol']); ?><?php echo number_format($payment->amount, 2); ?></td>
                                                 <td><?php echo esc_html($payment->transaction_id); ?></td>
                                                 <td><?php echo esc_html(ucwords(str_replace('_', ' ', $payment->payment_method))); ?></td>
                                                 <td>
