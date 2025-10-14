@@ -62,6 +62,17 @@ function somity_enqueue_scripts() {
 add_action('wp_enqueue_scripts', 'somity_enqueue_scripts');
 
 
+function somity_enqueue_scripts_for_ajax() {
+   wp_enqueue_script('somity-dashboard', get_template_directory_uri() . '/assets/js/dashboard.js', array('jquery', 'bootstrap'), SOMITY_VERSION, true);
+    
+    wp_localize_script('somity-dashboard', 'somity_ajax', array(
+        'ajax_url' => admin_url('admin-ajax.php'),
+        'nonce' => wp_create_nonce('somity_nonce')
+    ));
+}
+add_action('wp_enqueue_scripts', 'somity_enqueue_scripts_for_ajax');
+
+
 // Register sidebars
 function somity_widgets_init() {
     register_sidebar(array(
@@ -592,3 +603,147 @@ add_action('init', 'somity_create_payments_table');
 // }
 
 // add_action('init','user_role_assign');
+
+
+
+//===============================
+/**
+ * Add custom columns to somity_installments table
+ */
+function somity_add_installment_columns() {
+    global $wpdb;
+
+    $table_name = $wpdb->prefix . 'somity_installments';
+    $column_name1 = 'paid_amount';
+    $column_name2 = 'remaining_balance';
+
+    // Check if the columns already exist
+    $check_column1 = $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+         WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+        DB_NAME,
+        $table_name,
+        $column_name1
+    ));
+
+    $check_column2 = $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+         WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+        DB_NAME,
+        $table_name,
+        $column_name2
+    ));
+
+    // Add paid_amount column if it doesn't exist
+    if (empty($check_column1)) {
+        $wpdb->query("ALTER TABLE $table_name ADD COLUMN paid_amount FLOAT DEFAULT 0");
+    }
+
+    // Add remaining_balance column if it doesn't exist
+    if (empty($check_column2)) {
+        $wpdb->query("ALTER TABLE $table_name ADD COLUMN remaining_balance FLOAT DEFAULT 0");
+    }
+}
+add_action('after_switch_theme', 'somity_add_installment_columns');
+
+function somity_create_credits_table() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'somity_credits';
+    $charset_collate = $wpdb->get_charset_collate();
+
+    $sql = "CREATE TABLE $table_name (
+        id INT(11) NOT NULL AUTO_INCREMENT,
+        member_id INT(11) NOT NULL,
+        amount FLOAT NOT NULL,
+        payment_id INT(11) NULL,
+        created_at DATETIME NOT NULL,
+        PRIMARY KEY (id)
+    ) $charset_collate;";
+
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    dbDelta($sql);
+}
+add_action('after_switch_theme', 'somity_create_credits_table');
+
+function get_somity_currency_symbol() {
+// Get current settings
+ $current_settings = array(
+    'monthly_installment_amount' => get_option('somity_monthly_installment_amount', 300.00),
+    'late_payment_fee' => get_option('somity_late_payment_fee', 10.00),
+    'payment_methods' => get_option('somity_payment_methods', array('bank_transfer', 'mobile_banking')),
+    'currency_symbol' => get_option('somity_currency_symbol', '$'),
+    'currency_position' => get_option('somity_currency_position', 'before'),
+    'admin_email' => get_option('somity_admin_email', get_option('admin_email')),
+    'auto_approve_payments' => get_option('somity_auto_approve_payments', 0),
+    'notify_admin_on_payment' => get_option('somity_notify_admin_on_payment', 1),
+    'notify_member_on_approval' => get_option('somity_notify_member_on_approval', 1),
+    'overpayment_handling' => get_option('somity_overpayment_handling', 'next_installment'),
+);
+
+    return $current_settings['currency_symbol'];
+}
+
+/**
+ * Add missing columns to database tables
+ */
+function somity_update_database_schema() {
+    global $wpdb;
+    
+    $charset_collate = $wpdb->get_charset_collate();
+    
+    // Add notes column to somity_credits table
+    $table_name = $wpdb->prefix . 'somity_credits';
+    $credits_columns = $wpdb->get_results("SHOW COLUMNS FROM $table_name LIKE 'notes'");
+    
+    if (empty($credits_columns)) {
+        $wpdb->query("ALTER TABLE $table_name ADD COLUMN notes TEXT NULL AFTER payment_id");
+    }
+    
+    // Add created_by column to somity_credits table if it doesn't exist
+    $created_by_columns = $wpdb->get_results("SHOW COLUMNS FROM $table_name LIKE 'created_by'");
+    
+    if (empty($created_by_columns)) {
+        $wpdb->query("ALTER TABLE $table_name ADD COLUMN created_by INT(11) NOT NULL AFTER notes");
+    }
+    
+    // Add installment_id and payment_note columns to somity_payments table
+    $payments_table = $wpdb->prefix . 'somity_payments';
+
+    // Check and add installment_id column
+    $installment_column = $wpdb->get_results("SHOW COLUMNS FROM $payments_table LIKE 'installment_id'");
+    if (empty($installment_column)) {
+        $wpdb->query("ALTER TABLE $payments_table ADD COLUMN installment_id INT(11) NULL AFTER member_id");
+    }
+
+    // Check and add payment_note column
+    $note_column = $wpdb->get_results("SHOW COLUMNS FROM $payments_table LIKE 'payment_note'");
+    if (empty($note_column)) {
+        $wpdb->query("ALTER TABLE $payments_table ADD COLUMN payment_note TEXT NULL AFTER installment_id");
+    }
+}
+
+// Run this function on plugin activation or theme switch
+add_action('init', 'somity_update_database_schema');
+
+
+/**
+ * Manual database update function
+ */
+function somity_manual_db_update() {
+    if (isset($_GET['somity_db_update']) && current_user_can('manage_options')) {
+        somity_update_database_schema();
+        wp_redirect(admin_url('admin.php?page=somity-settings&db_updated=1'));
+        exit;
+    }
+}
+add_action('admin_init', 'somity_manual_db_update');
+
+// Add a notice after database update
+function somity_db_update_notice() {
+    if (isset($_GET['db_updated']) && $_GET['db_updated'] == '1') {
+        echo '<div class="notice notice-success is-dismissible">';
+        echo '<p>' . __('Database schema has been updated successfully.', 'somity-manager') . '</p>';
+        echo '</div>';
+    }
+}
+add_action('admin_notices', 'somity_db_update_notice');

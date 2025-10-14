@@ -2,49 +2,49 @@
  * Somity Manager Main JavaScript
  */
 
-(function($) {
+(function ($) {
     'use strict';
 
     // Document ready
-    $(document).ready(function() {
+    $(document).ready(function () {
         // Counter animation
-        $('.stat-number').each(function() {
+        $('.stat-number').each(function () {
             var $this = $(this);
             var countTo = $this.attr('data-count');
-            
+
             $({ countNum: $this.text() }).animate({
                 countNum: countTo
             }, {
                 duration: 2000,
                 easing: 'linear',
-                step: function() {
+                step: function () {
                     $this.text(Math.floor(this.countNum));
                 },
-                complete: function() {
+                complete: function () {
                     $this.text(this.countNum);
                 }
             });
         });
-        
+
         // Contact form submission
-        $('#contact-form').on('submit', function(e) {
+        $('#contact-form').on('submit', function (e) {
             e.preventDefault();
-            
+
             var $form = $(this);
             var $message = $('#contact-message');
             var formData = new FormData($form[0]);
-            
+
             $.ajax({
                 type: 'POST',
                 url: somityAjax.ajaxurl,
                 data: formData,
                 processData: false,
                 contentType: false,
-                beforeSend: function() {
+                beforeSend: function () {
                     $form.find('button[type="submit"]').prop('disabled', true);
                     $message.hide();
                 },
-                success: function(response) {
+                success: function (response) {
                     if (response.success) {
                         $message.removeClass('error').addClass('success').text(response.data.message).show();
                         $form[0].reset();
@@ -53,36 +53,36 @@
                     }
                     $form.find('button[type="submit"]').prop('disabled', false);
                 },
-                error: function() {
+                error: function () {
                     $message.removeClass('success').addClass('error').text('An error occurred. Please try again.').show();
                     $form.find('button[type="submit"]').prop('disabled', false);
                 }
             });
         });
-        
+
         // Dark mode toggle
-        $('.dark-mode-toggle').on('click', function() {
+        $('.dark-mode-toggle').on('click', function () {
             $('body').toggleClass('dark-mode');
             var isDarkMode = $('body').hasClass('dark-mode');
             localStorage.setItem('somity_dark_mode', isDarkMode);
-            
+
             if (isDarkMode) {
                 $('.toggle-icon').text('☀️');
             } else {
                 $('.toggle-icon').text('🌙');
             }
         });
-        
+
         // Check for saved dark mode preference
         if (localStorage.getItem('somity_dark_mode') === 'true') {
             $('body').addClass('dark-mode');
             $('.toggle-icon').text('☀️');
         }
-        
+
         // Smooth scroll
-        $('a[href^="#"]').on('click', function(e) {
+        $('a[href^="#"]').on('click', function (e) {
             e.preventDefault();
-            
+
             var target = $(this.getAttribute('href'));
             if (target.length) {
                 $('html, body').animate({
@@ -90,34 +90,49 @@
                 }, 500);
             }
         });
-        
+
         // File upload preview
-        $('.file-input').on('change', function() {
+        $('.file-input').on('change', function () {
             var file = this.files[0];
             var reader = new FileReader();
             var preview = $(this).siblings('.file-preview');
-            
-            reader.onload = function(e) {
+
+            reader.onload = function (e) {
                 preview.html('<img src="' + e.target.result + '" alt="Preview">');
                 preview.show();
             };
-            
+
             if (file) {
                 reader.readAsDataURL(file);
             } else {
                 preview.hide();
             }
         });
-        
+
         // Sidebar toggle
-        $('.sidebar-toggle').on('click', function() {
+        $('.sidebar-toggle').on('click', function () {
             $('.dashboard-sidebar').toggleClass('active');
         });
-        
+
         // Close sidebar when clicking outside
-        $(document).on('click', function(e) {
+        $(document).on('click', function (e) {
             if (!$(e.target).closest('.dashboard-sidebar, .sidebar-toggle').length) {
                 $('.dashboard-sidebar').removeClass('active');
+            }
+        });
+        $('#paymentMethod').on('change', function () {
+            if ($(this).val() === 'bank_transfer' || $(this).val() === 'mobile_banking' || $(this).val() === '') {
+                $('#trxid').show();
+                $('#transactionId').attr('required', true);
+                // Change both divs to col-md-6 when trxid is visible
+                // $('#paymentMethodDiv').removeClass('col-md-12').addClass('col-md-6');
+                // $('#paymentMethodDiv, #paymentDateDiv').removeClass('col-md-12').addClass('col-md-6');
+                $('#paymentMethodDiv').removeClass('col-md-6').addClass('col-md-12');
+            } else {
+                $('#trxid').hide();
+                $('#transactionId').attr('required', false);
+                // Change both divs back to col-md-12 when trxid is hidden
+                $('#paymentMethodDiv').removeClass('col-md-12').addClass('col-md-6');
             }
         });
     });

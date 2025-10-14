@@ -112,7 +112,7 @@ get_header();
                             <input type="hidden" name="action" value="submit_payment">
                             
                             <div class="row mb-4">
-                                <div class="col-md-6">
+                                <div class="col-md-6 mb-4">
                                     <label for="installmentMonth" class="form-label"><?php _e('Installment Month', 'somity-manager'); ?></label>
                                     <select class="form-select" id="installmentMonth" name="installment_id">
                                         <option value=""><?php _e('Select Installment', 'somity-manager'); ?></option>
@@ -130,79 +130,71 @@ get_header();
                                         ?>
                                     </select>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-6 mb-4">
                                     <label for="paymentAmount" class="form-label"><?php _e('Payment Amount', 'somity-manager'); ?></label>
                                     <div class="input-group">
                                         <?php if ($currency_position === 'before') : ?>
-                                        <span class="input-group-text"><?php echo esc_html($currency_symbol); ?></span>
+                                        <span class="input-group-text"><?php echo get_somity_currency_symbol(); ?></span>
                                         <?php endif; ?>
                                         <input type="number" class="form-control" id="paymentAmount" name="amount" placeholder="0.00" min="0.01" step="0.01" value="<?php echo $installment ? esc_attr($installment->amount) : ''; ?>" required>
                                         <?php if ($currency_position === 'after') : ?>
-                                        <span class="input-group-text"><?php echo esc_html($currency_symbol); ?></span>
+                                        <span class="input-group-text"><?php echo get_somity_currency_symbol(); ?></span>
                                         <?php endif; ?>
                                     </div>
                                 </div>
-                            </div>
-                            
-                            <div class="row mb-4">
-                                <div class="col-md-6">
-                                    <label for="transactionId" class="form-label"><?php _e('Transaction ID', 'somity-manager'); ?></label>
-                                    <input type="text" class="form-control" id="transactionId" name="transaction_id" placeholder="<?php _e('Enter transaction ID', 'somity-manager'); ?>" required>
+                                <div class="col-md-12 mb-4" id="paymentMethodDiv">
+                                    <label for="paymentMethod" class="form-label"><?php _e('Payment Method', 'somity-manager'); ?></label>
+                                    <select class="form-select" id="paymentMethod" name="payment_method" required>
+                                        <option value=""><?php _e('Select Payment Method', 'somity-manager'); ?></option>
+                                        <?php
+                                        // Get payment methods from settings
+                                        $payment_methods = get_option('somity_payment_methods', array('bank_transfer', 'mobile_banking'));
+                                        
+                                        $payment_method_labels = array(
+                                            'bank_transfer' => __('Bank Transfer', 'somity-manager'),
+                                            'mobile_banking' => __('Mobile Banking', 'somity-manager'),
+                                            'cash' => __('Cash', 'somity-manager'),
+                                            'check' => __('Check', 'somity-manager')
+                                        );
+                                        
+                                        foreach ($payment_methods as $method) {
+                                            if (isset($payment_method_labels[$method])) {
+                                                echo '<option value="' . esc_attr($method) . '">' . esc_html($payment_method_labels[$method]) . '</option>';
+                                            }
+                                        }
+                                        ?>
+                                    </select>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-6 mb-4" id="trxid">
+                                    <label for="transactionId" class="form-label"><?php _e('Transaction ID', 'somity-manager'); ?></label>
+                                    <input type="text" class="form-control" id="transactionId" name="transaction_id" placeholder="<?php _e('Enter transaction ID', 'somity-manager'); ?>" required="required">
+                                </div>
+                                <div class="col-md-6 mb-4" id="paymentDateDiv">
                                     <label for="paymentDate" class="form-label"><?php _e('Payment Date', 'somity-manager'); ?></label>
                                     <input type="date" class="form-control" id="paymentDate" name="payment_date" value="<?php echo esc_attr(date('Y-m-d')); ?>" required>
                                 </div>
-                            </div>
-                            
-                            <div class="mb-4">
-                                <label for="paymentMethod" class="form-label"><?php _e('Payment Method', 'somity-manager'); ?></label>
-                                <select class="form-select" id="paymentMethod" name="payment_method" required>
-                                    <option value=""><?php _e('Select Payment Method', 'somity-manager'); ?></option>
-                                    <?php
-                                    // Get payment methods from settings
-                                    $payment_methods = get_option('somity_payment_methods', array('bank_transfer', 'mobile_banking'));
-                                    
-                                    $payment_method_labels = array(
-                                        'bank_transfer' => __('Bank Transfer', 'somity-manager'),
-                                        'mobile_banking' => __('Mobile Banking', 'somity-manager'),
-                                        'cash' => __('Cash', 'somity-manager'),
-                                        'check' => __('Check', 'somity-manager')
-                                    );
-                                    
-                                    foreach ($payment_methods as $method) {
-                                        if (isset($payment_method_labels[$method])) {
-                                            echo '<option value="' . esc_attr($method) . '">' . esc_html($payment_method_labels[$method]) . '</option>';
-                                        }
-                                    }
-                                    ?>
-                                </select>
-                            </div>
-                            
-                            <div class="mb-4">
-                                <label for="paymentScreenshot" class="form-label"><?php _e('Payment Screenshot/Receipt', 'somity-manager'); ?></label>
-                                <div class="file-upload">
-                                    <input type="file" class="form-control" id="paymentScreenshot" name="payment_screenshot" accept="image/*" required>
-                                    <div class="file-upload-label">
-                                        <i class="bi bi-cloud-arrow-up me-2"></i>
-                                        <span id="fileLabel"><?php _e('Click to upload or drag and drop', 'somity-manager'); ?></span>
+
+                                <div class="col-md-12 mb-4">
+                                    <label for="paymentScreenshot" class="form-label"><?php _e('Payment Screenshot/Receipt', 'somity-manager'); ?></label>
+                                    <div class="file-upload">
+                                        <input type="file" class="form-control" id="paymentScreenshot" name="payment_screenshot" accept="image/*" required>
+                                        <div class="file-upload-label">
+                                            <i class="bi bi-cloud-arrow-up me-2"></i>
+                                            <span id="fileLabel"><?php _e('Click to upload or drag and drop', 'somity-manager'); ?></span>
+                                        </div>
+                                    </div>
+                                    <div class="form-text"><?php _e('Upload a screenshot of your payment confirmation or receipt (PNG, JPG up to 5MB)', 'somity-manager'); ?></div>
+                                    <!-- Image preview -->
+                                    <div id="imagePreview" style="margin-top: 10px; display: none;">
+                                        <img src="" alt="Preview" style="max-width: 100%; max-height: 200px; border: 1px solid #ddd; border-radius: 4px;">
                                     </div>
                                 </div>
-                                <div class="form-text"><?php _e('Upload a screenshot of your payment confirmation or receipt (PNG, JPG up to 5MB)', 'somity-manager'); ?></div>
-                                <!-- Image preview -->
-                                <div id="imagePreview" style="margin-top: 10px; display: none;">
-                                    <img src="" alt="Preview" style="max-width: 100%; max-height: 200px; border: 1px solid #ddd; border-radius: 4px;">
+                                <div class="col-md-12 mb-4">
+                                    <label for="notes" class="form-label"><?php _e('Additional Notes (Optional)', 'somity-manager'); ?></label>
+                                    <textarea class="form-control" id="notes" name="payment_note" rows="3" placeholder="<?php _e('Enter any additional information about this payment', 'somity-manager'); ?>"></textarea>
                                 </div>
                             </div>
-                            
-                            <div class="mb-4">
-                                <label for="notes" class="form-label"><?php _e('Additional Notes (Optional)', 'somity-manager'); ?></label>
-                                <textarea class="form-control" id="notes" name="payment_note" rows="3" placeholder="<?php _e('Enter any additional information about this payment', 'somity-manager'); ?>"></textarea>
-                            </div>
-                            
-                            <?php if ($installment) : ?>
-                            <input type="hidden" name="installment_id" value="<?php echo esc_attr($installment->id); ?>">
-                            <?php endif; ?>
+
                             
                             <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                                 <button type="button" class="btn btn-outline-primary me-md-2" id="cancelBtn"><?php _e('Cancel', 'somity-manager'); ?></button>
@@ -313,11 +305,7 @@ get_header();
             </div>
 
         </div>
-        
-        <!-- Sidebar
-        <div class="col-lg-3">
-
-        </div> -->
+    
     </div>
 </div>
 

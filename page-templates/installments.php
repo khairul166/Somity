@@ -8,7 +8,19 @@ if (!is_user_logged_in() || !current_user_can('administrator')) {
     wp_redirect(home_url());
     exit;
 }
-
+// Get current settings
+ $current_settings = array(
+    'monthly_installment_amount' => get_option('somity_monthly_installment_amount', 300.00),
+    'late_payment_fee' => get_option('somity_late_payment_fee', 10.00),
+    'payment_methods' => get_option('somity_payment_methods', array('bank_transfer', 'mobile_banking')),
+    'currency_symbol' => get_option('somity_currency_symbol', '$'),
+    'currency_position' => get_option('somity_currency_position', 'before'),
+    'admin_email' => get_option('somity_admin_email', get_option('admin_email')),
+    'auto_approve_payments' => get_option('somity_auto_approve_payments', 0),
+    'notify_admin_on_payment' => get_option('somity_notify_admin_on_payment', 1),
+    'notify_member_on_approval' => get_option('somity_notify_member_on_approval', 1),
+    'overpayment_handling' => get_option('somity_overpayment_handling', 'next_installment'),
+);
 get_header();
 ?>
 
@@ -341,7 +353,7 @@ get_header();
                         <label for="installment-amount" class="form-label"><?php _e('Installment Amount', 'somity-manager'); ?></label>
                         <div class="input-group">
                             <span class="input-group-text">$</span>
-                            <input type="number" class="form-control" id="installment-amount" min="0" step="0.01" required>
+                            <input type="number" class="form-control" id="installment-amount" min="0" step="0.01" Value="<?php echo esc_attr($current_settings['monthly_installment_amount']); ?>" required>
                         </div>
                     </div>
                     <div class="mb-3">

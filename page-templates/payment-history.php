@@ -78,7 +78,11 @@ get_header();
                 
                 <!-- Payment Summary -->
                 <div class="row mb-4">
-                    <div class="col-md-4">
+                    <?php
+                        $overpayment_method = get_option('somity_overpayment_handling', 'next_installment');
+                        $column_class = ($overpayment_method === 'credit_balance') ? 'col-md-3' : 'col-md-4';
+                    ?>
+                    <div class="<?php echo esc_attr($column_class); ?>">
                         <div class="stats-card">
                             <div class="stats-icon">
                                 <i class="bi bi-cash-stack"></i>
@@ -87,7 +91,7 @@ get_header();
                             <div class="stats-label"><?php _e('Total Paid', 'somity-manager'); ?></div>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="<?php echo esc_attr($column_class); ?>">
                         <div class="stats-card">
                             <div class="stats-icon">
                                 <i class="bi bi-check-circle-fill"></i>
@@ -96,7 +100,7 @@ get_header();
                             <div class="stats-label"><?php _e('Approved Payments', 'somity-manager'); ?></div>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="<?php echo esc_attr($column_class); ?>">
                         <div class="stats-card">
                             <div class="stats-icon">
                                 <i class="bi bi-clock-fill"></i>
@@ -105,6 +109,17 @@ get_header();
                             <div class="stats-label"><?php _e('Pending Payments', 'somity-manager'); ?></div>
                         </div>
                     </div>
+                    <?php if ($overpayment_method === 'credit_balance') : ?>
+                        <div class="<?php echo esc_attr($column_class); ?>">
+                            <div class="stats-card">
+                                <div class="stats-icon">
+                                    <i class="bi bi bi-wallet2"></i>
+                                </div>
+                                <div class="stats-number"><?php echo esc_html(get_member_credit_balance($member_id)); ?></div>
+                                <div class="stats-label"><?php _e('Credit Balance', 'somity-manager'); ?></div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                 </div>
                 
                 <!-- Search and Filter -->

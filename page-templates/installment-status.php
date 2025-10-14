@@ -126,7 +126,7 @@ get_header();
                                 <p class="text-muted mb-0"><?php _e('Total amount due for pending installments', 'somity-manager'); ?></p>
                             </div>
                             <div class="col-md-6 text-end">
-                                <a href="<?php echo esc_url(home_url('/submit-payment/')); ?>" class="btn btn-primary">
+                                <a href="<?php echo esc_url(home_url('/submit-payment/')); ?>" class="btn btn-primary <?php if(somity_get_member_outstanding_balance($member_id) === 0){ echo 'disabled'; } ?>">
                                     <i class="bi bi-cash-stack"></i> <?php _e('Pay Now', 'somity-manager'); ?>
                                 </a>
                             </div>

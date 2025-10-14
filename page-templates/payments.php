@@ -52,10 +52,19 @@ get_header();
 <div class="row mb-4">
     <?php
     $overpayment_method = get_option('somity_overpayment_handling', 'next_installment');
-    $column_class = ($overpayment_method === 'credit_balance') ? 'col-md-3' : 'col-md-4';
+    //$column_class = ($overpayment_method === 'credit_balance') ? 'col-md-3' : 'col-md-4';
     ?>
 
-    <div class="<?php echo esc_attr($column_class); ?>">
+    <div class="col-md-3">
+        <div class="stats-card">
+            <div class="stats-icon">
+                <i class="bi bi-cash"></i>
+            </div>
+            <div class="stats-number"><?php echo esc_html(somity_available_balance()); ?></div>
+            <div class="stats-label"><?php _e('Available Balance', 'somity-manager'); ?></div>
+        </div>
+    </div>
+    <div class="col-md-3">
         <div class="stats-card">
             <div class="stats-icon">
                 <i class="bi bi-clock-history"></i>
@@ -65,7 +74,7 @@ get_header();
         </div>
     </div>
 
-    <div class="<?php echo esc_attr($column_class); ?>">
+    <div class="col-md-3">
         <div class="stats-card">
             <div class="stats-icon">
                 <i class="bi bi-check-circle-fill"></i>
@@ -74,8 +83,8 @@ get_header();
             <div class="stats-label"><?php _e('Approved Payments', 'somity-manager'); ?></div>
         </div>
     </div>
-
-    <div class="<?php echo esc_attr($column_class); ?>">
+<?php if ($overpayment_method !== 'credit_balance') : ?>
+    <div class="col-md-3">
         <div class="stats-card">
             <div class="stats-icon">
                 <i class="bi bi-x-circle-fill"></i>
@@ -84,9 +93,10 @@ get_header();
             <div class="stats-label"><?php _e('Rejected Payments', 'somity-manager'); ?></div>
         </div>
     </div>
+    <?php endif; ?>
 
     <?php if ($overpayment_method === 'credit_balance') : ?>
-        <div class="<?php echo esc_attr($column_class); ?>">
+        <div class="col-md-3">
             <div class="stats-card">
                 <div class="stats-icon">
                     <i class="bi bi-wallet2"></i>
@@ -201,7 +211,7 @@ get_header();
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td>$<?php echo number_format($payment->amount, 2); ?></td>
+                                                <td><?php echo get_somity_currency_symbol(); ?><?php echo number_format($payment->amount, 2); ?></td>
                                                 <td><?php echo esc_html($payment->transaction_id); ?></td>
                                                 <td><?php echo date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($payment->payment_date)); ?></td>
                                                 <td><?php echo esc_html(ucfirst($payment->payment_method)); ?></td>

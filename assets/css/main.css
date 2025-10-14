@@ -55,6 +55,12 @@ p {
     box-shadow: var(--shadow-hover);
 }
 
+.btn-primary:active {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: var(--white);
+}
+
 .btn-outline-primary {
     color: var(--primary-color);
     border-color: var(--primary-color);
