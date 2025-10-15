@@ -467,7 +467,7 @@ footer {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 15px;
+    padding: 100px;
     border: 2px dashed var(--light-gray);
     border-radius: 8px;
     background-color: var(--white);

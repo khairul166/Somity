@@ -323,14 +323,94 @@ function somity_ajax_submit_payment() {
     
     // Sanitize and validate input
     $amount = isset($_POST['amount']) ? floatval($_POST['amount']) : 0;
-    $installment_id = isset($_POST['installment_id']) ? intval($_POST['installment_id']) : 0; // NEW: Get installment ID
+    $installment_id = isset($_POST['installment_id']) ? intval($_POST['installment_id']) : 0;
     $transaction_id = isset($_POST['transaction_id']) ? sanitize_text_field($_POST['transaction_id']) : '';
     $payment_date = isset($_POST['payment_date']) ? sanitize_text_field($_POST['payment_date']) : '';
     $payment_method = isset($_POST['payment_method']) ? sanitize_text_field($_POST['payment_method']) : '';
     $payment_note = isset($_POST['payment_note']) ? sanitize_textarea_field($_POST['payment_note']) : '';
 
     
-    error_log('Sanitized data: amount=' . $amount . ', installment_id=' . $installment_id . ', transaction_id=' . $transaction_id . ', payment_date=' . $payment_date);
+    error_log('Sanitized data: amount=' . $amount . ', installment_id=' . $installment_id . ', transaction_id=' . $transaction_id . ', payment_date=' . $payment_date.', Payment Note='. $payment_note.', Payment Method='.$payment_method);
+    
+    // NEW: Validate if payment amount is 0 (fully covered by credit)
+    if ($amount == 0) {
+        error_log('Payment amount is 0 - checking if credit balance covers full payment');
+        
+        // Get installment details to verify the full payment amount
+        if ($installment_id) {
+            global $wpdb;
+            $installment_table = $wpdb->prefix . 'somity_installments';
+            
+            $installment = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM $installment_table WHERE id = %d AND member_id = %d",
+                $installment_id, $member_id
+            ));
+            
+            if ($installment) {
+                $installment_amount = floatval($installment->amount);
+                $installment_paid = floatval($installment->paid_amount);
+                $remaining_balance = $installment_amount - $installment_paid;
+                
+                // Get member's credit balance
+                $credits_table = $wpdb->prefix . 'somity_credits';
+                $credit_balance = 0;
+                $credit_records = $wpdb->get_results($wpdb->prepare(
+                    "SELECT * FROM $credits_table WHERE member_id = %d AND amount > 0 ORDER BY created_at ASC",
+                    $member_id
+                ));
+                
+                foreach ($credit_records as $credit) {
+                    $credit_balance += floatval($credit->amount);
+                }
+                
+                error_log("Installment details: Amount=" . $installment_amount . ", Paid=" . $installment_paid . ", Remaining=" . $remaining_balance);
+                error_log("Credit balance: " . $credit_balance);
+                
+                // Check if credit balance covers the remaining balance
+                if ($credit_balance >= $remaining_balance) {
+                    error_log("Credit balance covers full payment. Credit: " . $credit_balance . ", Remaining: " . $remaining_balance);
+                    
+                    // Payment is fully covered by credit, but we need a transaction ID for tracking
+                    if ($payment_method === 'bank_transfer' || $payment_method === 'mobile_banking') {
+                        if (empty($transaction_id)) {
+                            error_log('Transaction ID is required for bank transfer/mobile banking');
+                            wp_send_json_error(array(
+                                'message' => __('Transaction ID is required for bank transfer or mobile banking payments.', 'somity-manager'),
+                                'error_code' => 'transaction_id_required'
+                            ));
+                        }
+                    }
+                    
+                    // For cash payments, transaction ID is not required
+                    if ($payment_method === 'cash' && empty($transaction_id)) {
+                        // Generate a transaction ID for cash payments
+                        $transaction_id = 'CASH-' . date('YmdHis') . '-' . $member_id;
+                        error_log('Generated transaction ID for cash payment: ' . $transaction_id);
+                    }
+                    
+                    // Continue with payment processing
+                } else {
+                    error_log("Insufficient credit balance. Credit: " . $credit_balance . ", Remaining: " . $remaining_balance);
+                    wp_send_json_error(array(
+                        'message' => __('Your credit balance is insufficient to cover this payment. Please add more credit or select a different installment.', 'somity-manager'),
+                        'error_code' => 'insufficient_credit'
+                    ));
+                }
+            } else {
+                error_log('Installment not found for ID: ' . $installment_id);
+                wp_send_json_error(array(
+                    'message' => __('Installment not found.', 'somity-manager'),
+                    'error_code' => 'installment_not_found'
+                ));
+            }
+        } else {
+            error_log('No installment ID provided');
+            wp_send_json_error(array(
+                'message' => __('Please select an installment to pay for.', 'somity-manager'),
+                'error_code' => 'no_installment'
+            ));
+        }
+    }
     
     // Validate required fields
     if($payment_method === 'bank_transfer' || $payment_method === 'mobile_banking'){
@@ -345,9 +425,42 @@ function somity_ajax_submit_payment() {
     }
     }
 
-    
     global $wpdb;
     $table_name = $wpdb->prefix . 'somity_payments';
+    $installment_table = $wpdb->prefix . 'somity_installments';
+    $credits_table = $wpdb->prefix . 'somity_credits';
+    
+    // Get installment details
+    $installment = null;
+    if ($installment_id) {
+        $installment = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $installment_table WHERE id = %d AND member_id = %d",
+            $installment_id, $member_id
+        ));
+    }
+    
+    // Get member's credit balance
+    $credit_balance = 0;
+    $credit_records = $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM $credits_table WHERE member_id = %d AND amount > 0 ORDER BY created_at ASC",
+        $member_id
+    ));
+    
+    foreach ($credit_records as $credit) {
+        $credit_balance += floatval($credit->amount);
+    }
+    
+    // Calculate payment details
+    $applicable_credit = 0;
+    $remaining_balance = 0;
+    
+    if ($installment) {
+        $remaining_balance = floatval($installment->amount) - floatval($installment->paid_amount);
+        $applicable_credit = min($credit_balance, $remaining_balance);
+        
+        error_log("Installment details: Total=" . $installment->amount . ", Paid=" . $installment->paid_amount . ", Remaining=" . $remaining_balance);
+        error_log("Credit balance: " . $credit_balance . ", Applicable credit: " . $applicable_credit);
+    }
     
     // Handle file upload
     $payment_screenshot = '';
@@ -405,7 +518,16 @@ function somity_ajax_submit_payment() {
             }
         }
     } else {
-        error_log('No file uploaded');
+        // For zero amount payments (fully covered by credit), file upload might be optional
+        if ($amount > 0) {
+            error_log('No file uploaded for non-zero payment');
+            wp_send_json_error(array(
+                'message' => __('Payment screenshot/Receipt is required for this payment.', 'somity-manager'),
+                'error_code' => 'screenshot_required'
+            ));
+        } else {
+            error_log('No file uploaded for zero amount payment (fully covered by credit)');
+        }
     }
     
     $member_status = get_user_meta($member_id, '_member_status', true);
@@ -414,10 +536,10 @@ function somity_ajax_submit_payment() {
         wp_send_json_error(array('message' => __('Please Wait for active your account', 'somity-manager')));
     }
     
-    // Prepare data for insertion - UPDATED to include installment_id
+    // Prepare data for insertion
     $data = array(
         'member_id' => $member_id,
-        'installment_id' => $installment_id, // NEW: Add installment_id
+        'installment_id' => $installment_id,
         'payment_note' => $payment_note,
         'amount' => $amount,
         'transaction_id' => $transaction_id,
@@ -429,8 +551,20 @@ function somity_ajax_submit_payment() {
         'updated_at' => current_time('mysql'),
     );
     
-    // Format for database insertion - UPDATED to include installment_id format
-    $format = array('%d', '%d', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s'); // Added %d for installment_id
+    // Format for database insertion
+    $format = array(
+        '%d', // member_id
+        '%d', // installment_id
+        '%s', // payment_note
+        '%f', // amount
+        '%s', // transaction_id
+        '%s', // payment_date
+        '%s', // payment_method
+        '%s', // status
+        '%s', // payment_screenshot
+        '%s', // created_at
+        '%s'  // updated_at
+    );
     
     // Insert payment data into the database
     $result = $wpdb->insert($table_name, $data, $format);
@@ -449,10 +583,105 @@ function somity_ajax_submit_payment() {
         error_log('Installment ID saved as post meta: ' . $installment_id);
     }
     
+    // DEDUCT CREDIT BALANCE IF APPLICABLE - UPDATED APPROACH (NO DELETION)
+    if ($applicable_credit > 0) {
+        error_log("Deducting applicable credit: " . $applicable_credit);
+        
+        // NEW APPROACH: Mark credits as used instead of deleting them
+        $remaining_credit_to_deduct = $applicable_credit;
+        
+        foreach ($credit_records as $credit) {
+            if ($remaining_credit_to_deduct <= 0) {
+                break;
+            }
+            
+            $credit_amount = floatval($credit->amount);
+            $deduct_amount = min($credit_amount, $remaining_credit_to_deduct);
+            
+            if ($deduct_amount > 0) {
+                error_log("Marking " . $deduct_amount . " as used from credit ID " . $credit->id);
+                
+                // NEW: Instead of deleting, mark the credit as used by adding a status field
+                // First, check if the credits table has a 'status' column
+                $column_exists = $wpdb->get_var("SHOW COLUMNS FROM $credits_table LIKE 'status'");
+                
+                if ($column_exists) {
+                    // Update the credit record to mark it as used
+                    $update_result = $wpdb->update(
+                        $credits_table,
+                        array(
+                            'status' => 'used', // Mark as used
+                            'updated_at' => current_time('mysql')
+                        ),
+                        array('id' => $credit->id),
+                        array('%s', '%s'),
+                        array('%d')
+                    );
+                    
+                    if ($update_result === false) {
+                        error_log("Failed to update credit record status: " . $wpdb->last_error);
+                    } else {
+                        error_log("Credit record " . $credit->id . " marked as used successfully");
+                    }
+                } else {
+                    // If status column doesn't exist, add it
+                    $alter_result = $wpdb->query("ALTER TABLE $credits_table ADD COLUMN status VARCHAR(20) DEFAULT 'available' AFTER notes");
+                    
+                    if ($alter_result === false) {
+                        error_log("Failed to add status column: " . $wpdb->last_error);
+                    } else {
+                        error_log("Status column added successfully");
+                        
+                        // Now update the credit record
+                        $update_result = $wpdb->update(
+                            $credits_table,
+                            array(
+                                'status' => 'used',
+                                'updated_at' => current_time('mysql')
+                            ),
+                            array('id' => $credit->id),
+                            array('%s', '%s'),
+                            array('%d')
+                        );
+                        
+                        if ($update_result === false) {
+                            error_log("Failed to update credit record status: " . $wpdb->last_error);
+                        } else {
+                            error_log("Credit record " . $credit->id . " marked as used successfully");
+                        }
+                    }
+                }
+                
+                $remaining_credit_to_deduct -= $deduct_amount;
+                
+                // Add a record of credit usage
+                $usage_result = $wpdb->insert(
+                    $credits_table,
+                    array(
+                        'member_id' => $member_id,
+                        'amount' => -$deduct_amount, // Negative amount for credit usage
+                        'payment_id' => $payment_id,
+                        'notes' => sprintf(__('Credit used for payment #%d of installment #%d', 'somity-manager'), $payment_id, $installment_id),
+                        'status' => 'usage', // Mark as usage record
+                        'created_by' => get_current_user_id(),
+                        'created_at' => current_time('mysql'),
+                    ),
+                    array('%d', '%f', '%d', '%s', '%s', '%d', '%s')
+                );
+                
+                if ($usage_result === false) {
+                    error_log("Failed to create credit usage record: " . $wpdb->last_error);
+                } else {
+                    error_log("Credit usage record created successfully");
+                }
+            }
+        }
+    }
+    
     // Create activity record
     $activity_data = array(
         'post_title' => 'Payment Submitted',
-        'post_content' => $current_user->display_name . ' submitted a payment of ' . $amount,
+        'post_content' => $current_user->display_name . ' submitted a payment of ' . $amount . ($applicable_credit > 0 ? ' with ' . $applicable_credit . ' credit applied' : ''),
         'post_status' => 'publish',
         'post_author' => $member_id,
         'post_type' => 'activity',
@@ -467,10 +696,20 @@ function somity_ajax_submit_payment() {
     
     error_log('Payment submission completed successfully');
     
-    wp_send_json_success(array(
+    // Prepare success response with special handling for zero amount payments
+    $response = array(
         'message' => __('Your payment has been submitted successfully and is pending approval.', 'somity-manager'),
+        'applicable_credit' => $applicable_credit,
         'redirect' => home_url('/member-dashboard/'),
-    ));
+    );
+    
+    // Add special message for zero amount payments (fully covered by credit)
+    if ($amount == 0) {
+        $response['zero_amount_payment'] = true;
+        $response['zero_amount_message'] = __('Your payment was fully covered by your credit balance. No additional payment is required.', 'somity-manager');
+    }
+    
+    wp_send_json_success($response);
 }
 
 
@@ -1815,162 +2054,7 @@ function somity_ajax_approve_payment() {
     wp_die();
 }
 
-/**
- * Update payment status
- */
-// function somity_update_payment_status($payment_id, $status) {
-//     global $wpdb;
 
-//     $table_name = $wpdb->prefix . 'somity_payments';
-//     $installment_table = $wpdb->prefix . 'somity_installments';
-//     $credits_table = $wpdb->prefix . 'somity_credits';
-
-//     // Get payment details
-//     $payment = $wpdb->get_row($wpdb->prepare(
-//         "SELECT p.*, u.display_name as member_name FROM $table_name p
-//          LEFT JOIN {$wpdb->users} u ON p.member_id = u.ID
-//          WHERE p.id = %d",
-//         $payment_id
-//     ));
-
-//     if (!$payment) {
-//         return false;
-//     }
-
-//     // Update payment status
-//     $result = $wpdb->update(
-//         $table_name,
-//         array(
-//             'status' => $status,
-//             'updated_at' => current_time('mysql'),
-//         ),
-//         array('id' => $payment_id),
-//         array('%s', '%s'),
-//         array('%d')
-//     );
-
-//     if ($result === false) {
-//         return false;
-//     }
-
-//     if ($status === 'approved') {
-//         $payment_installment_id = get_post_meta($payment_id, '_installment_id', true);
-
-//         if ($payment_installment_id) {
-//             $installment = $wpdb->get_row($wpdb->prepare(
-//                 "SELECT * FROM $installment_table WHERE id = %d", $payment_installment_id
-//             ));
-//         } else {
-//             $installment = $wpdb->get_row($wpdb->prepare(
-//                 "SELECT * FROM $installment_table 
-//                  WHERE member_id = %d AND status IN ('pending', 'partial')
-//                  ORDER BY due_date ASC LIMIT 1",
-//                 $payment->member_id
-//             ));
-//         }
-
-//         if ($installment) {
-//             $current_paid = floatval($installment->paid_amount);
-//             $installment_total = floatval($installment->amount);
-//             $payment_amount = floatval($payment->amount);
-
-//             $new_paid = $current_paid + $payment_amount;
-//             $remaining = $installment_total - $new_paid;
-
-//             // FIXED: Allow paid_amount to exceed installment_total for proper overpayment detection
-//             $wpdb->update(
-//                 $installment_table,
-//                 array(
-//                     'paid_amount' => $new_paid, // REMOVED min() function
-//                     'remaining_balance' => $remaining, // Allow negative values for overpayment
-//                     'status' => $remaining <= 0 ? 'paid' : 'partial',
-//                     'updated_at' => current_time('mysql'),
-//                 ),
-//                 array('id' => $installment->id),
-//                 array('%f', '%f', '%s', '%s'),
-//                 array('%d')
-//             );
-
-//             // Handle overpayment
-//             if ($remaining < 0) {
-//                 $overpayment = abs($remaining);
-                
-//                 // FIXED: Get the setting directly as a string value
-//                 $method = get_option('somity_overpayment_handling', 'next_installment');
-
-//                 if ($method === 'next_installment') {
-//                     $next_installment = $wpdb->get_row($wpdb->prepare(
-//                         "SELECT * FROM $installment_table 
-//                          WHERE member_id = %d AND status IN ('pending', 'partial')
-//                          AND id != %d
-//                          ORDER BY due_date ASC LIMIT 1",
-//                         $payment->member_id, $installment->id
-//                     ));
-
-//                     if ($next_installment) {
-//                         $next_paid = floatval($next_installment->paid_amount);
-//                         $next_total = floatval($next_installment->amount);
-//                         $next_remaining = $next_total - ($next_paid + $overpayment);
-
-//                         $wpdb->update(
-//                             $installment_table,
-//                             array(
-//                                 'paid_amount' => $next_paid + $overpayment,
-//                                 'remaining_balance' => $next_remaining,
-//                                 'status' => $next_remaining <= 0 ? 'paid' : 'partial',
-//                                 'updated_at' => current_time('mysql'),
-//                             ),
-//                             array('id' => $next_installment->id),
-//                             array('%f', '%f', '%s', '%s'),
-//                             array('%d')
-//                         );
-//                     } else {
-//                         error_log("Overpayment of {$overpayment} for member {$payment->member_id} with no next installment.");
-//                     }
-//                 } elseif ($method === 'credit_balance') {
-//                     // Add credit balance record
-//                     $wpdb->insert(
-//                         $credits_table,
-//                         array(
-//                             'member_id' => $payment->member_id,
-//                             'amount' => $overpayment,
-//                             'payment_id' => $payment_id,
-//                             'notes' => sprintf(__('Overpayment from payment #%d', 'somity-manager'), $payment_id),
-//                             'created_by' => get_current_user_id(),
-//                             'created_at' => current_time('mysql'),
-//                         ),
-//                         array('%d', '%f', '%d', '%s', '%d', '%s')
-//                     );
-                    
-//                     // Log credit creation
-//                     error_log("Credit balance of {$overpayment} added for member {$payment->member_id} from overpayment.");
-//                 }
-//             }
-//         }
-//     }
-
-//     // Activity log (unchanged)
-//     $activity_data = array(
-//         'post_title' => 'Payment ' . ucfirst($status),
-//         'post_content' => 'Payment of ' . $payment->amount . ' by ' . $payment->member_name . ' was ' . $status,
-//         'post_status' => 'publish',
-//         'post_author' => get_current_user_id(),
-//         'post_type' => 'activity',
-//     );
-
-//     $activity_id = wp_insert_post($activity_data);
-
-//     if (!is_wp_error($activity_id)) {
-//         wp_set_post_terms($activity_id, 'payment', 'activity_type');
-//     }
-
-//     return true;
-// }
-
-
-/**
- * Apply payment to installment
- */
 function somity_apply_payment_to_installment($payment_id, $installment_id) {
     global $wpdb;
     
@@ -2687,7 +2771,7 @@ function somity_get_member_payments_paginated($member_id, $per_page = 10, $page 
     }
     
     // Add order and pagination to the main query
-    $query .= " ORDER BY payment_date ASC";
+    $query .= " ORDER BY id DESC";
     $query .= " LIMIT %d OFFSET %d";
     $prepare_values[] = $per_page;
     $prepare_values[] = $offset;
@@ -3028,6 +3112,112 @@ function somity_get_member_credit_balance($member_id) {
     return floatval($result);
 }
 
+/**
+ * Get installment details with remaining balance
+ */
+function somity_get_installment_with_remaining($installment_id, $member_id) {
+    global $wpdb;
+    
+    $installment = $wpdb->get_row($wpdb->prepare(
+        "SELECT i.*, 
+                (i.amount - i.paid_amount) as remaining_balance
+         FROM {$wpdb->prefix}somity_installments i
+         WHERE i.id = %d AND i.member_id = %d",
+        $installment_id, $member_id
+    ));
+    
+    return $installment;
+}
+
+
+/**
+ * Apply credit balance to payment
+ */
+function somity_apply_credit_to_payment($payment_amount, $credit_balance, $remaining_balance) {
+    // Calculate how much credit can be applied
+    $applicable_credit = min($credit_balance, $remaining_balance);
+    
+    // Calculate the actual amount to be paid
+    $amount_to_pay = max(0, $remaining_balance - $applicable_credit);
+    
+    return array(
+        'applicable_credit' => $applicable_credit,
+        'amount_to_pay' => $amount_to_pay,
+        'remaining_credit' => $credit_balance - $applicable_credit
+    );
+}
+
+// In your somity_ajax_get_installment_amount_with_credit function
+add_action('wp_ajax_get_installment_amount_with_credit', 'somity_ajax_get_installment_amount_with_credit');
+function somity_ajax_get_installment_amount_with_credit() {
+    // Add this debug line at the beginning
+    error_log("=== AJAX HANDLER CALLED ===");
+    
+    // Verify nonce
+    if (!check_ajax_referer('somity-nonce', 'nonce', false)) {
+        error_log("Nonce verification failed");
+        wp_send_json_error(array('message' => __('Security check failed.', 'somity-manager')));
+    }
+    
+    // Check if user is logged in
+    if (!is_user_logged_in()) {
+        error_log("User not logged in");
+        wp_send_json_error(array('message' => __('You must be logged in.', 'somity-manager')));
+    }
+    
+    // Get installment ID
+    $installment_id = isset($_POST['installment_id']) ? intval($_POST['installment_id']) : 0;
+    error_log("Installment ID: $installment_id");
+    
+    if (!$installment_id) {
+        error_log("Invalid installment ID");
+        wp_send_json_error(array('message' => __('Invalid installment ID.', 'somity-manager')));
+    }
+    
+    // Get current user
+    $member_id = get_current_user_id();
+    error_log("Member ID: $member_id");
+    
+    // Get installment details
+    $installment = somity_get_installment_with_remaining($installment_id, $member_id);
+    
+    if (!$installment) {
+        error_log("Installment not found");
+        wp_send_json_error(array('message' => __('Installment not found.', 'somity-manager')));
+    }
+    
+    // Log installment details
+    error_log("Installment details: " . print_r($installment, true));
+    
+    // Get member's credit balance
+    $credit_balance = somity_get_member_credit_balance($member_id);
+    error_log("Credit balance: $credit_balance");
+    
+    // Calculate payment details
+    $payment_details = somity_apply_credit_to_payment(
+        $installment->amount,
+        $credit_balance,
+        $installment->remaining_balance
+    );
+    
+    // Log payment details
+    error_log("Payment details: " . print_r($payment_details, true));
+    
+    // Prepare response with proper numeric values
+    $response = array(
+        'installment_amount' => floatval($installment->amount),
+        'remaining_balance' => floatval($installment->remaining_balance),
+        'credit_balance' => floatval($credit_balance),
+        'applicable_credit' => floatval($payment_details['applicable_credit']),
+        'amount_to_pay' => floatval($payment_details['amount_to_pay']),
+        'remaining_credit' => floatval($payment_details['remaining_credit'])
+    );
+    
+    // Log final response
+    error_log("Final response: " . print_r($response, true));
+    
+    wp_send_json_success($response);
+}
 /**
  * Get total credit balance across all members
  */

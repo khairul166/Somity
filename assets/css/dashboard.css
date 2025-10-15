@@ -715,3 +715,66 @@
     border-radius: 4px;
     font-size: 0.9em;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+/* Additional styles can be added below as needed */
+/* Zero-Payment Notice Styles */
+.zero-payment-notice {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.zero-payment-notice .d-flex {
+    padding: 1rem;
+}
+
+.zero-payment-notice i {
+    width: 48px;
+    height: 48px;
+    background: rgba(25, 135, 84, 0.2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: #198754;
+}
+
+.zero-payment-notice h5 {
+    margin-bottom: 0.25rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #198754;
+}
+
+.zero-payment-notice p {
+    margin-bottom: 0;
+    color: #6c757d;
+}
+
+/* Animation for zero-payment notice */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.zero-payment-notice {
+    animation: slideIn 0.3s ease-out;
+}

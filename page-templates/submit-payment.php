@@ -110,6 +110,50 @@ get_header();
                         <form id="paymentForm" method="post" enctype="multipart/form-data">
                             <?php wp_nonce_field('somity-nonce', 'nonce'); ?>
                             <input type="hidden" name="action" value="submit_payment">
+
+                            <!-- Credit Balance Section -->
+                            <?php
+                            // Get member's credit balance
+                            $credit_balance = somity_get_member_credit_balance($member_id);
+                            if ($credit_balance > 0) :
+                            ?>
+                            <div class="alert alert-info mb-4">
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-piggy-bank-fill me-3" style="font-size: 1.5rem;"></i>
+                                    <div>
+                                        <h5 class="mb-1"><?php _e('You Have Credit Balance Available!', 'somity-manager'); ?></h5>
+                                        <p class="mb-2"><?php _e('Your current credit balance:', 'somity-manager'); ?> <strong><?php echo ($currency_position === 'before' ? $currency_symbol : '') . number_format($credit_balance, 2) . ($currency_position === 'after' ? $currency_symbol : ''); ?></strong></p>
+                                        <p class="mb-0 small"><?php _e('This credit will be automatically applied to your payment. You only need to pay the remaining amount.', 'somity-manager'); ?></p>
+                                    </div>
+                                </div>
+                            </div>
+                            <?php endif; ?>
+                            
+
+                            <!-- Payment Summary with Credit -->
+                            <div class="payment-summary-with-credit mb-4" style="display: none;">
+                                <div class="card border-success">
+                                    <div class="card-header bg-success text-white">
+                                        <h5 class="mb-0 text-white"><?php _e('Payment Summary with Credit Applied', 'somity-manager'); ?></h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <table class="table table-sm">
+                                            <tr>
+                                                <td><?php _e('Installment Amount Due:', 'somity-manager'); ?></td>
+                                                <td class="text-end" id="summary-installment-amount">-</td>
+                                            </tr>
+                                            <tr>
+                                                <td><?php _e('Less: Credit Balance Applied:', 'somity-manager'); ?></td>
+                                                <td class="text-end" id="summary-credit-applied">-</td>
+                                            </tr>
+                                            <tr class="table-active">
+                                                <td><strong><?php _e('Amount to Pay:', 'somity-manager'); ?></strong></td>
+                                                <td class="text-end" id="summary-amount-to-pay">-</td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
                             
                             <div class="row mb-4">
                                 <div class="col-md-6 mb-4">
@@ -136,7 +180,7 @@ get_header();
                                         <?php if ($currency_position === 'before') : ?>
                                         <span class="input-group-text"><?php echo get_somity_currency_symbol(); ?></span>
                                         <?php endif; ?>
-                                        <input type="number" class="form-control" id="paymentAmount" name="amount" placeholder="0.00" min="0.01" step="0.01" value="<?php echo $installment ? esc_attr($installment->amount) : ''; ?>" required>
+                                        <input type="number" class="form-control" id="paymentAmount" name="amount" placeholder="0.00" min="0.00" step="1" value="<?php echo $installment ? esc_attr($installment->amount) : ''; ?>" required="required">
                                         <?php if ($currency_position === 'after') : ?>
                                         <span class="input-group-text"><?php echo get_somity_currency_symbol(); ?></span>
                                         <?php endif; ?>
@@ -198,7 +242,7 @@ get_header();
                             
                             <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                                 <button type="button" class="btn btn-outline-primary me-md-2" id="cancelBtn"><?php _e('Cancel', 'somity-manager'); ?></button>
-                                <button type="submit" class="btn btn-primary"><?php _e('Submit Payment', 'somity-manager'); ?></button>
+                                <button type="submit" class="btn btn-primary"><i class="bi bi-send me-2"></i><?php _e('Submit Payment', 'somity-manager'); ?></button>
                             </div>
                         </form>
                     </div>
@@ -257,51 +301,51 @@ get_header();
                     </div>
                 </div>
                 <?php endif; ?>
-                            <div class="payment-summary mt-4 p-4 border rounded">
-                <h5 class="mb-3"><?php _e('Payment Summary', 'somity-manager'); ?></h5>
-                
-                <div class="summary-item">
-                    <span><?php _e('Member Name:', 'somity-manager'); ?></span>
-                    <span><?php echo esc_html($current_user->display_name); ?></span>
+                <div class="payment-summary mt-4 p-4 border rounded">
+                    <h5 class="mb-3"><?php _e('Payment Summary', 'somity-manager'); ?></h5>
+                    
+                    <div class="summary-item">
+                        <span><?php _e('Member Name:', 'somity-manager'); ?></span>
+                        <span><?php echo esc_html($current_user->display_name); ?></span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span><?php _e('Member ID:', 'somity-manager'); ?></span>
+                        <span>CSM-<?php echo date('Y'); ?>-<?php echo str_pad($member_id, 3, '0', STR_PAD_LEFT); ?></span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span><?php _e('Monthly Installment:', 'somity-manager'); ?></span>
+                        <span><?php echo ($currency_position === 'before' ? $currency_symbol : '') . number_format(somity_get_member_monthly_installment($member_id), 2) . ($currency_position === 'after' ? $currency_symbol : ''); ?></span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span><?php _e('Outstanding Balance:', 'somity-manager'); ?></span>
+                        <span><?php echo ($currency_position === 'before' ? $currency_symbol : '') . number_format(somity_get_member_outstanding_balance($member_id), 2) . ($currency_position === 'after' ? $currency_symbol : ''); ?></span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span><?php _e('Total Paid:', 'somity-manager'); ?></span>
+                        <span><?php echo ($currency_position === 'before' ? $currency_symbol : '') . number_format(somity_get_member_total_paid($member_id), 2) . ($currency_position === 'after' ? $currency_symbol : ''); ?></span>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <h6><?php _e('Payment Instructions', 'somity-manager'); ?></h6>
+                        <ol class="small">
+                            <li><?php _e('Select the installment month you\'re paying for', 'somity-manager'); ?></li>
+                            <li><?php _e('Enter the exact amount and transaction ID', 'somity-manager'); ?></li>
+                            <li><?php _e('Upload a clear screenshot of your payment confirmation', 'somity-manager'); ?></li>
+                            <li><?php _e('Submit and wait for admin approval', 'somity-manager'); ?></li>
+                        </ol>
+                    </div>
+                    
+                    <div class="mt-4 p-3 bg-light rounded">
+                        <h6><?php _e('Bank Details', 'somity-manager'); ?></h6>
+                        <p class="mb-1 small"><strong><?php _e('Bank Name:', 'somity-manager'); ?></strong> <?php echo esc_html(get_option('somity_bank_name', 'Community Savings Bank')); ?></p>
+                        <p class="mb-1 small"><strong><?php _e('Account Name:', 'somity-manager'); ?></strong> <?php echo esc_html(get_option('somity_bank_account_name', 'Community Savings Somity')); ?></p>
+                        <p class="mb-0 small"><strong><?php _e('Account Number:', 'somity-manager'); ?></strong> <?php echo esc_html(get_option('somity_bank_account_number', '1234567890')); ?></p>
+                    </div>
                 </div>
-                
-                <div class="summary-item">
-                    <span><?php _e('Member ID:', 'somity-manager'); ?></span>
-                    <span>CSM-<?php echo date('Y'); ?>-<?php echo str_pad($member_id, 3, '0', STR_PAD_LEFT); ?></span>
-                </div>
-                
-                <div class="summary-item">
-                    <span><?php _e('Monthly Installment:', 'somity-manager'); ?></span>
-                    <span><?php echo ($currency_position === 'before' ? $currency_symbol : '') . number_format(somity_get_member_monthly_installment($member_id), 2) . ($currency_position === 'after' ? $currency_symbol : ''); ?></span>
-                </div>
-                
-                <div class="summary-item">
-                    <span><?php _e('Outstanding Balance:', 'somity-manager'); ?></span>
-                    <span><?php echo ($currency_position === 'before' ? $currency_symbol : '') . number_format(somity_get_member_outstanding_balance($member_id), 2) . ($currency_position === 'after' ? $currency_symbol : ''); ?></span>
-                </div>
-                
-                <div class="summary-item">
-                    <span><?php _e('Total Paid:', 'somity-manager'); ?></span>
-                    <span><?php echo ($currency_position === 'before' ? $currency_symbol : '') . number_format(somity_get_member_total_paid($member_id), 2) . ($currency_position === 'after' ? $currency_symbol : ''); ?></span>
-                </div>
-                
-                <div class="mt-4">
-                    <h6><?php _e('Payment Instructions', 'somity-manager'); ?></h6>
-                    <ol class="small">
-                        <li><?php _e('Select the installment month you\'re paying for', 'somity-manager'); ?></li>
-                        <li><?php _e('Enter the exact amount and transaction ID', 'somity-manager'); ?></li>
-                        <li><?php _e('Upload a clear screenshot of your payment confirmation', 'somity-manager'); ?></li>
-                        <li><?php _e('Submit and wait for admin approval', 'somity-manager'); ?></li>
-                    </ol>
-                </div>
-                
-                <div class="mt-4 p-3 bg-light rounded">
-                    <h6><?php _e('Bank Details', 'somity-manager'); ?></h6>
-                    <p class="mb-1 small"><strong><?php _e('Bank Name:', 'somity-manager'); ?></strong> <?php echo esc_html(get_option('somity_bank_name', 'Community Savings Bank')); ?></p>
-                    <p class="mb-1 small"><strong><?php _e('Account Name:', 'somity-manager'); ?></strong> <?php echo esc_html(get_option('somity_bank_account_name', 'Community Savings Somity')); ?></p>
-                    <p class="mb-0 small"><strong><?php _e('Account Number:', 'somity-manager'); ?></strong> <?php echo esc_html(get_option('somity_bank_account_number', '1234567890')); ?></p>
-                </div>
-            </div>
             </div>
 
         </div>

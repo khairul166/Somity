@@ -197,39 +197,6 @@
         // Set today's date as default
         $('#paymentDate').val(new Date().toISOString().split('T')[0]);
 
-// Update amount when installment is selected
- $('#installmentMonth').on('change', function () {
-    var installmentId = $(this).val();
-    if (installmentId) {
-        // Show loading state
-        $('#paymentAmount').val('Loading...');
-        
-        $.ajax({
-            url: somity_ajax.ajax_url,
-            type: 'POST',
-            data: {
-                action: 'get_installment_amount',
-                installment_id: installmentId,
-                nonce: somity_ajax.nonce
-            },
-            success: function(response) {
-                if (response.success) {
-                    $('#paymentAmount').val(response.data.amount);
-                } else {
-                    $('#paymentAmount').val('0.00');
-                    alert(response.data.message || 'Error loading installment amount');
-                }
-            },
-            error: function() {
-                $('#paymentAmount').val('0.00');
-                alert('Error communicating with server');
-            }
-        });
-    } else {
-        $('#paymentAmount').val('0.00');
-    }
-});
-
         // Payment search with delay for better performance
         var searchTimer;
         $('#payment-search').on('keyup', function () {
@@ -279,33 +246,33 @@
         });
 
         // Filter functionality
-        $('#filter-btn').on('click', function() {
+        $('#filter-btn').on('click', function () {
             var status = $('#installment-filter').val();
             var search = $('#installment-search').val();
             var month = $('#month-filter').val();
-            
+
             var url = new URL(window.location.href);
-            
+
             // Clear existing search parameters
             url.searchParams.delete('status');
             url.searchParams.delete('search');
             url.searchParams.delete('month');
             url.searchParams.delete('paged');
-            
+
             // Add new search parameters
             url.searchParams.set('status', status);
             url.searchParams.set('search', search);
             url.searchParams.set('month', month);
             url.searchParams.set('paged', 1);
-            
+
             window.location.href = url.toString();
         });
 
         // Export members
-        $('#export-members').on('click', function() {
+        $('#export-members').on('click', function () {
             var status = $('#member-filter').val();
             var search = $('#member-search').val();
-            
+
             window.location.href = somityAjax.ajaxurl + '?action=export_members&status=' + status + '&search=' + search + '&nonce=' + somityAjax.nonce;
         });
 
@@ -319,118 +286,118 @@
         });
 
         // Helper function to show success messages at bottom-right
-function showSuccessMessage(message) {
-    const successMessage = document.createElement('div');
-    successMessage.className = 'alert alert-success alert-dismissible fade show position-fixed';
-    successMessage.style.bottom = '-100px'; // Start off-screen
-    successMessage.style.right = '20px'; // Position at right side
-    successMessage.style.transition = 'bottom 0.3s ease-in-out';
-    successMessage.style.zIndex = '9999';
-    successMessage.innerHTML = `
+        function showSuccessMessage(message) {
+            const successMessage = document.createElement('div');
+            successMessage.className = 'alert alert-success alert-dismissible fade show position-fixed';
+            successMessage.style.bottom = '-100px'; // Start off-screen
+            successMessage.style.right = '20px'; // Position at right side
+            successMessage.style.transition = 'bottom 0.3s ease-in-out';
+            successMessage.style.zIndex = '9999';
+            successMessage.innerHTML = `
         ${message}
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     `;
-    document.body.appendChild(successMessage);
+            document.body.appendChild(successMessage);
 
-    // Animate in - slide up from bottom
-    setTimeout(() => {
-        successMessage.style.bottom = '20px';
-    }, 10); // Small delay to ensure the transition takes effect
+            // Animate in - slide up from bottom
+            setTimeout(() => {
+                successMessage.style.bottom = '20px';
+            }, 10); // Small delay to ensure the transition takes effect
 
-    // Animate out and remove after 3 seconds
-    setTimeout(() => {
-        successMessage.style.bottom = '-100px'; // Slide down
-        
-        // Remove the element after the animation completes
-        setTimeout(() => {
-            successMessage.remove();
-        }, 300); // Wait for the slide-down animation to complete
-    }, 3000);
-}
+            // Animate out and remove after 3 seconds
+            setTimeout(() => {
+                successMessage.style.bottom = '-100px'; // Slide down
 
-// Approve payment on payment details page
- $('.approve-payment').on('click', function () {
-    var paymentId = $(this).data('id');
-    var $btn = $(this);
-    var $row = $(this).closest('tr');
-    var originalButtonText = $btn.html();
+                // Remove the element after the animation completes
+                setTimeout(() => {
+                    successMessage.remove();
+                }, 300); // Wait for the slide-down animation to complete
+            }, 3000);
+        }
 
-    if (confirm(somityAjax.texts.approveConfirm)) {
-        $.ajax({
-            type: 'POST',
-            url: somityAjax.ajaxurl,
-            data: {
-                action: 'approve_payment',
-                payment_id: paymentId,
-                nonce: somityAjax.nonce
-            },
-            beforeSend: function () {
-                $btn.prop('disabled', true);
-                $btn.html('<i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>');
-            },
-            success: function (response) {
-                // Add this debugging line
-                console.log('AJAX Response:', response);
-                
-                if (response.success) {
-                    // Prepare the message
-                    var alertMessage = response.data.message;
-                    
-                    // Add overpayment info if applicable
-                    if (response.data.overpayment) {
-                        alertMessage += '<br><small class="overpayment-info">' + response.data.overpayment_info + '</small>';
+        // Approve payment on payment details page
+        $('.approve-payment').on('click', function () {
+            var paymentId = $(this).data('id');
+            var $btn = $(this);
+            var $row = $(this).closest('tr');
+            var originalButtonText = $btn.html();
+
+            if (confirm(somityAjax.texts.approveConfirm)) {
+                $.ajax({
+                    type: 'POST',
+                    url: somityAjax.ajaxurl,
+                    data: {
+                        action: 'approve_payment',
+                        payment_id: paymentId,
+                        nonce: somityAjax.nonce
+                    },
+                    beforeSend: function () {
+                        $btn.prop('disabled', true);
+                        $btn.html('<i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>');
+                    },
+                    success: function (response) {
+                        // Add this debugging line
+                        console.log('AJAX Response:', response);
+
+                        if (response.success) {
+                            // Prepare the message
+                            var alertMessage = response.data.message;
+
+                            // Add overpayment info if applicable
+                            if (response.data.overpayment) {
+                                alertMessage += '<br><small class="overpayment-info">' + response.data.overpayment_info + '</small>';
+                            }
+
+                            // Show the success message at the bottom-right
+                            showSuccessMessage(alertMessage);
+
+                            //Reload the page after the message disappears (3.3 seconds to account for animation)
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 3300);
+
+                        } else {
+                            // Create an error alert with debug info if available
+                            var errorMessage = response.data.message;
+                            if (response.data.debug) {
+                                errorMessage += '<br><small class="text-muted">Debug: ' + response.data.debug + '</small>';
+                            }
+
+                            var $alert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                                errorMessage +
+                                '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>' +
+                                '</div>');
+
+                            // Insert the alert before the payment row
+                            $row.before($alert);
+
+                            $btn.prop('disabled', false);
+                            $btn.html(originalButtonText);
+                        }
+                    },
+                    error: function (xhr, status, error) {
+                        // Create an error alert with detailed info
+                        var errorMessage = somityAjax.texts.errorMessage;
+                        errorMessage += '<br><small>Status: ' + status + '</small>';
+                        errorMessage += '<br><small>Error: ' + error + '</small>';
+                        if (xhr.responseText) {
+                            errorMessage += '<br><small>Response: ' + xhr.responseText.substring(0, 200) + '...</small>';
+                        }
+
+                        var $alert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                            errorMessage +
+                            '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>' +
+                            '</div>');
+
+                        // Insert the alert before the payment row
+                        $row.before($alert);
+
+                        $btn.prop('disabled', false);
+                        $btn.html(originalButtonText);
                     }
-                    
-                    // Show the success message at the bottom-right
-                    showSuccessMessage(alertMessage);
-                    
-                    //Reload the page after the message disappears (3.3 seconds to account for animation)
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 3300);
-                    
-                } else {
-                    // Create an error alert with debug info if available
-                    var errorMessage = response.data.message;
-                    if (response.data.debug) {
-                        errorMessage += '<br><small class="text-muted">Debug: ' + response.data.debug + '</small>';
-                    }
-                    
-                    var $alert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
-                        errorMessage +
-                        '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>' +
-                        '</div>');
-                    
-                    // Insert the alert before the payment row
-                    $row.before($alert);
-                    
-                    $btn.prop('disabled', false);
-                    $btn.html(originalButtonText);
-                }
-            },
-            error: function (xhr, status, error) {
-                // Create an error alert with detailed info
-                var errorMessage = somityAjax.texts.errorMessage;
-                errorMessage += '<br><small>Status: ' + status + '</small>';
-                errorMessage += '<br><small>Error: ' + error + '</small>';
-                if (xhr.responseText) {
-                    errorMessage += '<br><small>Response: ' + xhr.responseText.substring(0, 200) + '...</small>';
-                }
-                
-                var $alert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
-                    errorMessage +
-                    '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>' +
-                    '</div>');
-                
-                // Insert the alert before the payment row
-                $row.before($alert);
-                
-                $btn.prop('disabled', false);
-                $btn.html(originalButtonText);
+                });
             }
         });
-    }
-});
 
         // Reject payment on payment details page
         $('.reject-payment').on('click', function () {
@@ -513,10 +480,10 @@ function showSuccessMessage(message) {
         });
 
         // Approve member
-        $('.approve-member').on('click', function() {
+        $('.approve-member').on('click', function () {
             var memberId = $(this).data('id');
             var $btn = $(this);
-            
+
             if (confirm(somityAjax.texts.approveConfirm)) {
                 $.ajax({
                     type: 'POST',
@@ -526,11 +493,11 @@ function showSuccessMessage(message) {
                         member_id: memberId,
                         nonce: somityAjax.nonce
                     },
-                    beforeSend: function() {
+                    beforeSend: function () {
                         $btn.prop('disabled', true);
                         $btn.html('<i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>');
                     },
-                    success: function(response) {
+                    success: function (response) {
                         if (response.success) {
                             // Show success message
                             alert(response.data.message);
@@ -543,7 +510,7 @@ function showSuccessMessage(message) {
                             $btn.html('<i class="bi bi-check-lg"></i>');
                         }
                     },
-                    error: function(xhr, status, error) {
+                    error: function (xhr, status, error) {
                         // Show error message
                         alert(somityAjax.texts.errorMessage);
                         console.log(xhr.responseText);
@@ -555,22 +522,22 @@ function showSuccessMessage(message) {
         });
 
         // Reject member
-        $('.reject-member').on('click', function() {
+        $('.reject-member').on('click', function () {
             var memberId = $(this).data('id');
             $('#rejection-member-id').val(memberId);
             $('#rejectionModal').modal('show');
         });
 
         // Confirm rejection
-        $('#confirm-rejection').on('click', function() {
+        $('#confirm-rejection').on('click', function () {
             var memberId = $('#rejection-member-id').val();
             var reason = $('#rejection-reason').val();
-            
+
             if (!reason) {
                 alert(somityAjax.texts.rejectReason);
                 return;
             }
-            
+
             $.ajax({
                 type: 'POST',
                 url: somityAjax.ajaxurl,
@@ -580,11 +547,11 @@ function showSuccessMessage(message) {
                     reason: reason,
                     nonce: somityAjax.nonce
                 },
-                beforeSend: function() {
+                beforeSend: function () {
                     $('#confirm-rejection').prop('disabled', true);
                     $('#confirm-rejection').html('<i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i> Processing...');
                 },
-                success: function(response) {
+                success: function (response) {
                     if (response.success) {
                         $('#rejectionModal').modal('hide');
                         alert(response.data.message);
@@ -595,7 +562,7 @@ function showSuccessMessage(message) {
                         $('#confirm-rejection').html('Reject Member');
                     }
                 },
-                error: function(xhr, status, error) {
+                error: function (xhr, status, error) {
                     alert(somityAjax.texts.errorMessage);
                     console.log(xhr.responseText);
                     $('#confirm-rejection').prop('disabled', false);
@@ -604,46 +571,46 @@ function showSuccessMessage(message) {
             });
         });
         // Export installments
-        $('#export-installments').on('click', function() {
+        $('#export-installments').on('click', function () {
             var status = $('#installment-filter').val();
             var search = $('#installment-search').val();
             var month = $('#month-filter').val();
-            
+
             window.location.href = somityAjax.ajaxurl + '?action=export_installments&status=' + status + '&search=' + search + '&month=' + month + '&nonce=' + somityAjax.nonce;
         });
 
         // Generate installments button
-        $('#generate-installments').on('click', function() {
+        $('#generate-installments').on('click', function () {
             $('#generateInstallmentsModal').modal('show');
         });
-        
-        
+
+
         // Toggle member select based on checkbox
-        $('#generate-for-all').on('change', function() {
+        $('#generate-for-all').on('change', function () {
             if ($(this).is(':checked')) {
                 $('#member-select').prop('disabled', true);
             } else {
                 $('#member-select').prop('disabled', false);
             }
         });
-        
+
         // Confirm generate installments
-        $('#confirm-generate').on('click', function() {
+        $('#confirm-generate').on('click', function () {
             var generateForAll = $('#generate-for-all').is(':checked');
             var memberId = $('#member-select').val();
             var amount = $('#installment-amount').val();
             var year = $('#installment-year').val();
-            
+
             if (!generateForAll && !memberId) {
                 alert('Please select a member.');
                 return;
             }
-            
+
             if (!amount || amount <= 0) {
                 alert('Please enter a valid amount.');
                 return;
             }
-            
+
             $.ajax({
                 type: 'POST',
                 url: somityAjax.ajaxurl,
@@ -655,11 +622,11 @@ function showSuccessMessage(message) {
                     year: year,
                     nonce: somityAjax.nonce
                 },
-                beforeSend: function() {
+                beforeSend: function () {
                     $('#confirm-generate').prop('disabled', true);
                     $('#confirm-generate').html('<i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i> Generating...');
                 },
-                success: function(response) {
+                success: function (response) {
                     if (response.success) {
                         $('#generateInstallmentsModal').modal('hide');
                         alert(response.data.message);
@@ -670,7 +637,7 @@ function showSuccessMessage(message) {
                         $('#confirm-generate').html('Generate');
                     }
                 },
-                error: function(xhr, status, error) {
+                error: function (xhr, status, error) {
                     alert(somityAjax.texts.errorMessage);
                     console.log(xhr.responseText);
                     $('#confirm-generate').prop('disabled', false);
@@ -678,12 +645,12 @@ function showSuccessMessage(message) {
                 }
             });
         });
-        
+
         // Mark as paid button
-        $('.mark-as-paid').on('click', function() {
+        $('.mark-as-paid').on('click', function () {
             var installmentId = $(this).data('id');
             var $btn = $(this);
-            
+
             if (confirm('Are you sure you want to mark this installment as paid?')) {
                 $.ajax({
                     type: 'POST',
@@ -693,11 +660,11 @@ function showSuccessMessage(message) {
                         installment_id: installmentId,
                         nonce: somityAjax.nonce
                     },
-                    beforeSend: function() {
+                    beforeSend: function () {
                         $btn.prop('disabled', true);
                         $btn.html('<i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>');
                     },
-                    success: function(response) {
+                    success: function (response) {
                         if (response.success) {
                             // Show success message
                             alert(response.data.message);
@@ -710,7 +677,7 @@ function showSuccessMessage(message) {
                             $btn.html('<i class="bi bi-check-lg"></i>');
                         }
                     },
-                    error: function(xhr, status, error) {
+                    error: function (xhr, status, error) {
                         // Show error message
                         alert(somityAjax.texts.errorMessage);
                         console.log(xhr.responseText);
@@ -720,100 +687,131 @@ function showSuccessMessage(message) {
                 });
             }
         });
+
+
+        //---------------------------------
+        // At the beginning of your JavaScript file
+        var currencySymbol = '৳'; // Default currency symbol
+
+        // Override currency symbol if available in somityAjax
+        if (typeof somityAjax !== 'undefined' && somityAjax.currency_symbol) {
+            currencySymbol = somityAjax.currency_symbol;
+            console.log("Currency symbol from somityAjax:", currencySymbol);
+        } else {
+            console.log("Using default currency symbol:", currencySymbol);
+        }
+
+// Update amount when installment is selected
+ $('#installmentMonth').on('change', function () {
+    var installmentId = $(this).val();
+    if (installmentId) {
+        console.log("Installment selected:", installmentId);
+
+        // Show loading state
+        $('#paymentAmount').val('Loading...');
+
+        // Clear any existing credit info and zero-payment notices
+        $('.credit-info-container').remove();
+        $('.zero-payment-notice').remove();
+
+        $.ajax({
+            url: somityAjax.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'get_installment_amount_with_credit',
+                installment_id: installmentId,
+                nonce: somityAjax.nonce
+            },
+            success: function (response) {
+                console.log("AJAX Response:", response);
+
+                if (response.success) {
+                    var data = response.data;
+                    console.log("Response data:", data);
+
+                    // Ensure all values are numbers before using toFixed()
+                    var installmentAmount = parseFloat(data.installment_amount) || 0;
+                    var remainingBalance = parseFloat(data.remaining_balance) || 0;
+                    var creditBalance = parseFloat(data.credit_balance) || 0;
+                    var applicableCredit = parseFloat(data.applicable_credit) || 0;
+                    var amountToPay = parseFloat(data.amount_to_pay) || 0;
+
+                    console.log("Parsed values:", {
+                        installmentAmount: installmentAmount,
+                        remainingBalance: remainingBalance,
+                        creditBalance: creditBalance,
+                        applicableCredit: applicableCredit,
+                        amountToPay: amountToPay
+                    });
+
+                    // Set the payment amount
+                    $('#paymentAmount').val(amountToPay);
+
+                    // Update payment summary
+                    $('.payment-summary-with-credit').show();
+
+                    // Use currencySymbol instead of somityAjax.currency_symbol
+                    $('#summary-installment-amount').text(currencySymbol + installmentAmount.toFixed(2));
+                    $('#summary-credit-applied').text('-' + currencySymbol + applicableCredit.toFixed(2));
+                    $('#summary-amount-to-pay').text(currencySymbol + amountToPay.toFixed(2));
+
+                    // If there's credit balance applicable, show credit info
+                    if (applicableCredit > 0) {
+
+                        // If amount to pay is 0, show message
+                        if (amountToPay === 0) {
+                            $('#paymentAmount').prop('readonly', true);
+                            $('#paymentAmount').attr('required', false);
+                            
+                            
+                            // Show success message
+                            showSuccessMessage(somityAjax.texts.fullPaymentCoveredByCredit);
+                        } else {
+                            $('#paymentAmount').prop('readonly', false);
+                            $('#paymentAmount').attr('required', true);
+                            
+                            // Remove any existing zero-payment notice
+                            $('.zero-payment-notice').remove();
+                        }
+                    } else {
+                        $('.credit-info-container').remove();
+                        $('.zero-payment-notice').remove();
+                        $('#paymentAmount').prop('readonly', false);
+                        $('#paymentAmount').attr('required', true);
+                    }
+                } else {
+                    console.log("AJAX returned error:", response.data.message);
+                    $('#paymentAmount').val('0.00');
+                    $('.payment-summary-with-credit').hide();
+                    $('.credit-info-container').remove();
+                    $('.zero-payment-notice').remove();
+                    alert(response.data.message || 'Error loading installment amount');
+                }
+            },
+            error: function (xhr, status, error) {
+                console.error("AJAX Error:", xhr, status, error);
+                if (xhr.responseText) {
+                    console.error("Response Text:", xhr.responseText);
+                }
+
+                $('#paymentAmount').val('0.00');
+                $('.payment-summary-with-credit').hide();
+                $('.credit-info-container').remove();
+                $('.zero-payment-notice').remove();
+                alert('Error communicating with server');
+            }
+        });
+    } else {
+        $('#paymentAmount').val('0.00');
+        $('.payment-summary-with-credit').hide();
+        $('.credit-info-container').remove();
+        $('.zero-payment-notice').remove();
+    }
+});
     });
 
 })(jQuery);
 
 
-// // Approve payment button
-//  $(document).on('click', '.approve-payment', function() {
-//     var paymentId = $(this).data('id');
-//     var $btn = $(this);
-    
-//     if (confirm('Are you sure you want to approve this payment?')) {
-//         $.ajax({
-//             type: 'POST',
-//             url: somityAjax.ajaxurl,
-//             data: {
-//                 action: 'approve_payment',
-//                 payment_id: paymentId,
-//                 nonce: somityAjax.nonce
-//             },
-//             beforeSend: function() {
-//                 $btn.prop('disabled', true);
-//                 $btn.html('<i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>');
-//             },
-//             success: function(response) {
-//                 if (response.success) {
-//                     // Show success message
-//                     alert(response.data.message);
-//                     // Reload the page
-//                     location.reload();
-//                 } else {
-//                     // Show error message
-//                     alert(response.data.message);
-//                     $btn.prop('disabled', false);
-//                     $btn.html('<i class="bi bi-check-lg"></i>');
-//                 }
-//             },
-//             error: function(xhr, status, error) {
-//                 // Show error message
-//                 alert(somityAjax.texts.errorMessage);
-//                 console.log(xhr.responseText);
-//                 $btn.prop('disabled', false);
-//                 $btn.html('<i class="bi bi-check-lg"></i>');
-//             }
-//         });
-//     }
-// });
 
-// // Reject payment button
-//  $(document).on('click', '.reject-payment', function() {
-//     var paymentId = $(this).data('id');
-//     var $btn = $(this);
-    
-//     if (confirm('Are you sure you want to reject this payment?')) {
-//         $.ajax({
-//             type: 'POST',
-//             url: somityAjax.ajaxurl,
-//             data: {
-//                 action: 'reject_payment',
-//                 payment_id: paymentId,
-//                 nonce: somityAjax.nonce
-//             },
-//             beforeSend: function() {
-//                 $btn.prop('disabled', true);
-//                 $btn.html('<i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>');
-//             },
-//             success: function(response) {
-//                 if (response.success) {
-//                     // Show success message
-//                     alert(response.data.message);
-//                     // Reload the page
-//                     location.reload();
-//                 } else {
-//                     // Show error message
-//                     alert(response.data.message);
-//                     $btn.prop('disabled', false);
-//                     $btn.html('<i class="bi bi-x-lg"></i>');
-//                 }
-//             },
-//             error: function(xhr, status, error) {
-//                 // Show error message
-//                 alert(somityAjax.texts.errorMessage);
-//                 console.log(xhr.responseText);
-//                 $btn.prop('disabled', false);
-//                 $btn.html('<i class="bi bi-x-lg"></i>');
-//             }
-//         });
-//     }
-// });
 
-// // Export payments
-//  $(document).on('click', '#export-payments', function() {
-//     var status = $('select[name="status"]').val();
-//     var search = $('input[name="search"]').val();
-//     var month = $('select[name="month"]').val();
-    
-//     window.location.href = somityAjax.ajaxurl + '?action=export_payments&status=' + status + '&search=' + search + '&month=' + month + '&nonce=' + somityAjax.nonce;
-// });

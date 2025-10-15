@@ -192,7 +192,7 @@ get_header();
                                     
                                     // Get paginated payments
                                     $payments_data = somity_get_member_payments_paginated($member_id, 10, $paged, $status, $search, $month);
-                                    
+                                
                                     if ($payments_data['items']) {
                                         foreach ($payments_data['items'] as $payment) {
                                             // Get status icon
