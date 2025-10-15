@@ -115,7 +115,7 @@ get_header();
                                 <div class="stats-icon">
                                     <i class="bi bi bi-wallet2"></i>
                                 </div>
-                                <div class="stats-number"><?php echo esc_html(get_member_credit_balance($member_id)); ?></div>
+                                <div class="stats-number"><?php echo esc_html(somity_get_member_credit_balance($member_id)); ?></div>
                                 <div class="stats-label"><?php _e('Credit Balance', 'somity-manager'); ?></div>
                             </div>
                         </div>

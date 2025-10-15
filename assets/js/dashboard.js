@@ -743,7 +743,6 @@
                         applicableCredit: applicableCredit,
                         amountToPay: amountToPay
                     });
-
                     // Set the payment amount
                     $('#paymentAmount').val(amountToPay);
 
@@ -751,7 +750,7 @@
                     $('.payment-summary-with-credit').show();
 
                     // Use currencySymbol instead of somityAjax.currency_symbol
-                    $('#summary-installment-amount').text(currencySymbol + installmentAmount.toFixed(2));
+                    $('#summary-installment-amount').text(currencySymbol + remainingBalance.toFixed(2));
                     $('#summary-credit-applied').text('-' + currencySymbol + applicableCredit.toFixed(2));
                     $('#summary-amount-to-pay').text(currencySymbol + amountToPay.toFixed(2));
 
@@ -780,12 +779,15 @@
                         $('#paymentAmount').attr('required', true);
                     }
                 } else {
+                    var data = response.data;
+                    console.log("Response indicates failure:", data);
+                    $('#paymentAmount').val(data.installment_amount);
                     console.log("AJAX returned error:", response.data.message);
-                    $('#paymentAmount').val('0.00');
+                    //$('#paymentAmount').val('0.00');
                     $('.payment-summary-with-credit').hide();
                     $('.credit-info-container').remove();
                     $('.zero-payment-notice').remove();
-                    alert(response.data.message || 'Error loading installment amount');
+                    //alert(response.data.message || 'Error loading installment amount');
                 }
             },
             error: function (xhr, status, error) {
@@ -794,7 +796,7 @@
                     console.error("Response Text:", xhr.responseText);
                 }
 
-                $('#paymentAmount').val('0.00');
+                //$('#paymentAmount').val('0.00');
                 $('.payment-summary-with-credit').hide();
                 $('.credit-info-container').remove();
                 $('.zero-payment-notice').remove();
@@ -802,7 +804,7 @@
             }
         });
     } else {
-        $('#paymentAmount').val('0.00');
+        //$('#paymentAmount').val('0.00');
         $('.payment-summary-with-credit').hide();
         $('.credit-info-container').remove();
         $('.zero-payment-notice').remove();
